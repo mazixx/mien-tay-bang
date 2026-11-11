@@ -1,0 +1,1081 @@
+import tkinter as tk
+from tkinter import font
+import random
+import math
+
+
+# =========================================================
+# MIEN TAY: BANG!
+# Ban lay cam hung, luat gian luoc, 1 nguoi + 4 bot.
+# Khong can thu vien ngoai.
+# =========================================================
+
+W, H = 1120, 800
+
+ROLES = {
+    "sheriff": "CẢNH SÁT TRƯỞNG",
+    "deputy": "PHÓ CẢNH SÁT",
+    "outlaw": "TỘI PHẠM",
+    "renegade": "KẺ PHẢN BỘI",
+}
+
+CARDS = {
+    "bang": ("BANG!", "Bắn 1 mục tiêu\ntrong tầm súng", "#aa3930"),
+    "miss": ("NÉ ĐẠN", "Tự động chặn\n1 phát bắn", "#397185"),
+    "beer": ("BIA", "Hồi 1 máu\nkhi còn >2 người", "#a87827"),
+    "stage": ("TIẾP TẾ", "Rút thêm\n2 lá bài", "#786142"),
+    "gatling": ("GATLING", "Bắn tất cả\nngười khác", "#824733"),
+    "rifle": ("SÚNG TRƯỜNG", "Trang bị\nTầm bắn = 2", "#405d6c"),
+    "scope": ("ỐNG NGẮM", "Trang bị\nKhoảng cách -1", "#536e59"),
+}
+
+DECK_COUNTS = {
+    "bang": 30,
+    "miss": 22,
+    "beer": 12,
+    "stage": 8,
+    "gatling": 4,
+    "rifle": 5,
+    "scope": 5,
+}
+
+BOT_NAMES = ["Jack Bụi", "Rose Đỏ", "Billy Sắt", "Tom Khói"]
+
+PAPER = "#ead4a2"
+INK = "#30281f"
+GOLD = "#e9bc62"
+BG = "#201d1c"
+
+
+class WesternGame:
+    def __init__(self, root):
+        self.root = root
+        root.title("Miền Tây: BANG! • Người đấu với bot")
+        root.resizable(False, False)
+
+        self.canvas = tk.Canvas(
+            root, width=W, height=H,
+            bg=BG, highlightthickness=0
+        )
+        self.canvas.pack()
+
+        self.font_name = "Segoe UI"
+        available = set(font.families(root))
+        if self.font_name not in available:
+            self.font_name = "DejaVu Sans"
+
+        self.canvas.bind("<Button-1>", self.click)
+        root.bind("<Escape>", lambda e: self.show_menu())
+        root.bind("<F2>", lambda e: self.new_game())
+
+        self.state = "menu"
+        self.generation = 0
+        self.buttons = []
+        self.hand_rects = []
+        self.player_rects = []
+        self.selected = None
+
+        self.draw_menu()
+
+    # =====================================================
+    # DO HOA CO BAN
+    # =====================================================
+
+    def text(self, x, y, value, size=14, color=PAPER,
+             bold=False, anchor="center", width=None):
+        options = {
+            "text": value,
+            "fill": color,
+            "font": (
+                self.font_name,
+                size,
+                "bold" if bold else "normal"
+            ),
+            "anchor": anchor,
+        }
+        if width:
+            options["width"] = width
+        return self.canvas.create_text(x, y, **options)
+
+    def rect(self, x, y, w, h, fill, outline="", width=1):
+        return self.canvas.create_rectangle(
+            x, y, x+w, y+h,
+            fill=fill, outline=outline, width=width
+        )
+
+    def button(self, x, y, w, h, label, action, enabled=True):
+        fill = "#95633a" if enabled else "#45413b"
+        self.rect(x+3, y+4, w, h, "#151414")
+        self.rect(x, y, w, h, fill, "#d8b577" if enabled else "#686153", 2)
+        self.text(
+            x+w/2, y+h/2, label, 13,
+            "#fff0cc" if enabled else "#9e9789", True
+        )
+        self.buttons.append(((x, y, x+w, y+h), action, enabled))
+
+    def wood(self):
+        cv = self.canvas
+        cv.delete("all")
+        self.rect(0, 0, W, H, "#30271f")
+
+        for i in range(14):
+            y = i * 60
+            colors = ["#473326", "#503a29", "#493425"]
+            self.rect(0, y, W, 59, colors[i % 3])
+            cv.create_line(0, y+59, W, y+59, fill="#211b17", width=2)
+
+            for j in range(6):
+                x = (j*193 + i*31) % W
+                cv.create_line(
+                    x, y+18, min(W, x+118), y+21,
+                    fill="#5a412e", width=1
+                )
+
+    def star(self, x, y, radius, color):
+        points = []
+        for i in range(10):
+            angle = -math.pi/2 + i*math.pi/5
+            r = radius if i % 2 == 0 else radius*0.45
+            points.extend([x+math.cos(angle)*r, y+math.sin(angle)*r])
+        self.canvas.create_polygon(
+            points, fill=color, outline="#f6dc94", width=1
+        )
+
+    def cowboy(self, x, y, color, sheriff=False, alive=True):
+        cv = self.canvas
+        skin = "#cfab7e" if alive else "#7a756b"
+        coat = color if alive else "#5a5550"
+
+        # Vai, co, dau.
+        cv.create_polygon(
+            x-29, y+47, x-23, y+14, x, y+6,
+            x+23, y+14, x+29, y+47,
+            fill=coat, outline="#211b17", width=2
+        )
+        self.rect(x-6, y+4, 12, 16, skin)
+        cv.create_oval(
+            x-16, y-28, x+16, y+12,
+            fill=skin, outline="#4d3728", width=2
+        )
+
+        # Mu cao boi.
+        cv.create_polygon(
+            x-20, y-25, x-13, y-48,
+            x+10, y-48, x+21, y-25,
+            fill="#292723", outline="#b3996e", width=2
+        )
+        cv.create_oval(
+            x-35, y-31, x+35, y-18,
+            fill="#292723", outline="#b3996e", width=2
+        )
+
+        cv.create_line(x-10, y-9, x-3, y-9, fill="#322a23", width=2)
+        cv.create_line(x+4, y-9, x+11, y-9, fill="#322a23", width=2)
+        cv.create_line(x-5, y+3, x+6, y+3, fill="#74533a", width=2)
+
+        # Khan.
+        cv.create_polygon(
+            x-16, y+13, x+15, y+13, x+2, y+29,
+            fill="#9d3f33", outline=""
+        )
+
+        if sheriff:
+            self.star(x+16, y+30, 10, GOLD)
+
+    # =====================================================
+    # MENU VA HUONG DAN
+    # =====================================================
+
+    def show_menu(self):
+        self.generation += 1
+        self.state = "menu"
+        self.draw_menu()
+
+    def draw_menu(self):
+        self.wood()
+        self.buttons = []
+
+        self.rect(76, 52, 970, 697, "#251f1a", "#a9864f", 3)
+        self.star(185, 146, 55, "#b28a43")
+        self.star(937, 146, 55, "#b28a43")
+
+        self.text(560, 125, "BANG!", 76, "#dc5645", True)
+        self.text(560, 209, "CUỘC ĐẤU MIỀN TÂY", 27, GOLD, True)
+        self.text(
+            560, 252,
+            "Game thẻ bài lấy cảm hứng • Luật giản lược • 1 người + 4 bot",
+            14
+        )
+
+        self.rect(148, 294, 824, 298, PAPER, "#b39866", 3)
+        self.text(560, 323, "BẠN LÀ CẢNH SÁT TRƯỞNG", 24, INK, True)
+
+        rules = [
+            "Tìm và loại 2 Tội phạm cùng 1 Kẻ phản bội. Đừng bắn nhầm Phó cảnh sát!",
+            "Mỗi lượt rút 2 lá. Chỉ được dùng 1 lá BANG! trong một lượt.",
+            "Nhấp lá bài để dùng. Với BANG!, tiếp tục nhấp vào mục tiêu.",
+            "Né đạn được dùng tự động. Bia hồi máu; Súng và Ống ngắm là trang bị.",
+            "Kết thúc lượt: tự bỏ bài dư để số lá còn lại không vượt quá máu.",
+            "Vai trò bot chỉ lộ khi bị loại. Bot suy đoán qua hành động trên bàn.",
+        ]
+
+        for i, value in enumerate(rules):
+            self.text(175, 367+i*34, value, 13, INK, anchor="w")
+
+        self.button(
+            330, 624, 460, 60,
+            "BẮT ĐẦU VÁN MỚI", "new"
+        )
+        self.text(
+            560, 718,
+            "Không dùng hình ảnh từ bộ bài gốc • F2: ván mới • ESC: màn hình chính",
+            12, "#ad9f89"
+        )
+
+    def show_help(self):
+        win = tk.Toplevel(self.root)
+        win.title("Hướng dẫn")
+        win.configure(bg=PAPER)
+        win.resizable(False, False)
+
+        message = (
+            "MỤC TIÊU\n"
+            "Bạn là Cảnh sát trưởng. Loại hết Tội phạm và Kẻ phản bội để thắng.\n"
+            "Phó cảnh sát đứng cùng phe với bạn.\n\n"
+            "THẺ BÀI\n"
+            "• BANG!: gây 1 sát thương, cần trong tầm, tối đa 1 lá/lượt.\n"
+            "• Né đạn: tự dùng để chặn BANG! hoặc Gatling.\n"
+            "• Bia: hồi 1 máu, không vượt máu tối đa; vô hiệu khi chỉ còn 2 người.\n"
+            "• Bia tự cứu khi máu về 0 nếu vẫn còn hơn 2 người sống.\n"
+            "• Tiếp tế: rút thêm 2 lá.\n"
+            "• Gatling: tấn công từng người còn lại, không giới hạn tầm.\n"
+            "• Súng trường: tầm bắn tăng lên 2.\n"
+            "• Ống ngắm: giảm khoảng cách tới mục tiêu đi 1, tối thiểu là 1.\n\n"
+            "KHOẢNG CÁCH\n"
+            "Tính theo đường ngắn nhất quanh vòng người chơi còn sống.\n"
+            "Người bị loại không còn tính vào khoảng cách.\n\n"
+            "THƯỞNG / PHẠT\n"
+            "Ai hạ Tội phạm được rút 3 lá.\n"
+            "Cảnh sát trưởng hạ Phó cảnh sát: mất hết bài và trang bị.\n\n"
+            "ĐIỀU KHIỂN\n"
+            "Nhấp lá bài. Nếu chọn BANG!, nhấp một đối thủ để bắn.\n"
+            "Nhấp lại lá đang chọn để bỏ chọn.\n"
+            "Cuối lượt tự bỏ bài dư. Né đạn và Bia được ưu tiên giữ lại.\n\n"
+            "Đây là luật giản lược, chưa có mọi lá bài và nhân vật của BANG!."
+        )
+
+        tk.Label(
+            win, text=message,
+            justify="left", anchor="w",
+            bg=PAPER, fg=INK,
+            font=(self.font_name, 11),
+            padx=24, pady=20,
+            wraplength=730
+        ).pack()
+
+    # =====================================================
+    # QUAN LY VAN BAI
+    # =====================================================
+
+    def new_game(self):
+        self.generation += 1
+        self.state = "playing"
+        self.selected = None
+        self.logs = []
+        self.result = ""
+        self.turn = 0
+        self.round_number = 1
+        self.bang_used = False
+        self.bot_steps = 0
+
+        roles = ["deputy", "outlaw", "outlaw", "renegade"]
+        random.shuffle(roles)
+
+        self.players = []
+        all_roles = ["sheriff"] + roles
+
+        for i, role in enumerate(all_roles):
+            maximum = 5 if i == 0 else 4
+            self.players.append({
+                "name": "Bạn",
+                "role": role,
+                "hp": maximum,
+                "maxhp": maximum,
+                "hand": [],
+                "alive": True,
+                "rifle": False,
+                "scope": False,
+                # Muc do thu dich voi canh sat truong,
+                # duoc cap nhat tu hanh dong cong khai.
+                "hostility": 0,
+            })
+            if i:
+                self.players[i]["name"] = BOT_NAMES[i-1]
+
+        self.deck = [
+            card
+            for card, count in DECK_COUNTS.items()
+            for _ in range(count)
+        ]
+        random.shuffle(self.deck)
+        self.discard = []
+
+        for i in range(5):
+            self.draw_cards(i, self.players[i]["maxhp"])
+
+        self.log("Một cuộc đấu mới bắt đầu tại thị trấn Bụi Đỏ.")
+        self.log("Bạn là Cảnh sát trưởng. Các vai trò còn lại đang được giấu.")
+        self.begin_turn(0)
+
+    def schedule(self, callback, delay=750):
+        token = self.generation
+
+        def run():
+            if token == self.generation and self.state == "playing":
+                callback()
+
+        self.root.after(delay, run)
+
+    def log(self, text):
+        self.logs.append(text)
+        self.logs = self.logs[-80:]
+
+    def alive_ids(self):
+        return [
+            i for i, player in enumerate(self.players)
+            if player["alive"]
+        ]
+
+    def draw_cards(self, index, number):
+        hand = self.players[index]["hand"]
+
+        for _ in range(number):
+            if not self.deck:
+                if not self.discard:
+                    break
+                self.deck = self.discard[:]
+                self.discard.clear()
+                random.shuffle(self.deck)
+
+            hand.append(self.deck.pop())
+
+    def consume(self, index, card):
+        self.players[index]["hand"].remove(card)
+        self.discard.append(card)
+
+    def distance(self, attacker, target):
+        alive = self.alive_ids()
+        a, b = alive.index(attacker), alive.index(target)
+        gap = abs(a-b)
+        distance = min(gap, len(alive)-gap)
+        if self.players[attacker]["scope"]:
+            distance -= 1
+        return max(1, distance)
+
+    def in_range(self, attacker, target):
+        gun_range = 2 if self.players[attacker]["rifle"] else 1
+        return self.distance(attacker, target) <= gun_range
+
+    def begin_turn(self, index):
+        if self.state != "playing":
+            return
+
+        self.turn = index
+        self.selected = None
+        self.bang_used = False
+        self.bot_steps = 0
+        self.draw_cards(index, 2)
+        self.log(f"Đến lượt {self.players[index]['name']} — rút 2 lá.")
+        self.render()
+
+        if index != 0:
+            self.schedule(self.bot_action, 1000)
+
+    def trim_hand(self, index):
+        player = self.players[index]
+        priority = {
+            "miss": 8,
+            "beer": 7,
+            "bang": 5,
+            "gatling": 6,
+            "stage": 4,
+            "rifle": 2,
+            "scope": 2,
+        }
+
+        removed = 0
+        while len(player["hand"]) > player["hp"]:
+            card = min(
+                player["hand"],
+                key=lambda item: (
+                    0 if (
+                        item == "rifle" and player["rifle"]
+                        or item == "scope" and player["scope"]
+                    ) else priority[item]
+                )
+            )
+            self.consume(index, card)
+            removed += 1
+
+        if removed:
+            self.log(f"{player['name']} bỏ {removed} lá dư cuối lượt.")
+
+    def end_turn(self):
+        if self.state != "playing":
+            return
+
+        self.trim_hand(self.turn)
+        alive = self.alive_ids()
+        next_index = alive[(alive.index(self.turn)+1) % len(alive)]
+
+        if next_index <= self.turn:
+            self.round_number += 1
+
+        self.begin_turn(next_index)
+
+    def use_card(self, index, card, target=None):
+        if self.state != "playing":
+            return False
+
+        player = self.players[index]
+
+        if card not in player["hand"]:
+            return False
+
+        if card == "miss":
+            if index == 0:
+                self.log("Né đạn sẽ tự động được dùng khi bạn bị tấn công.")
+            return False
+
+        if card == "bang":
+            if self.bang_used:
+                if index == 0:
+                    self.log("Bạn đã dùng BANG! trong lượt này.")
+                return False
+
+            if (
+                target is None or target == index
+                or not self.players[target]["alive"]
+            ):
+                return False
+
+            if not self.in_range(index, target):
+                if index == 0:
+                    self.log("Mục tiêu ngoài tầm súng!")
+                return False
+
+            self.consume(index, card)
+            self.bang_used = True
+            self.attack(index, target, "BANG!")
+            return True
+
+        if card == "beer":
+            if player["hp"] >= player["maxhp"]:
+                if index == 0:
+                    self.log("Máu đã đầy, chưa cần dùng Bia.")
+                return False
+
+            if len(self.alive_ids()) <= 2:
+                if index == 0:
+                    self.log("Chỉ còn 2 người: Bia không còn tác dụng.")
+                return False
+
+            self.consume(index, card)
+            player["hp"] += 1
+            self.log(f"{player['name']} uống Bia, hồi 1 máu.")
+            return True
+
+        if card in ("rifle", "scope"):
+            if player[card]:
+                if index == 0:
+                    self.log("Bạn đã có trang bị này.")
+                return False
+
+            player["hand"].remove(card)
+            player[card] = True
+            self.log(f"{player['name']} trang bị {CARDS[card][0]}.")
+            return True
+
+        if card == "stage":
+            self.consume(index, card)
+            self.draw_cards(index, 2)
+            self.log(f"{player['name']} dùng Tiếp tế, rút thêm 2 lá.")
+            return True
+
+        if card == "gatling":
+            self.consume(index, card)
+            self.log(f"{player['name']} khai hỏa GATLING!")
+
+            # Giai quyet lan luot theo vong ban.
+            targets = [
+                (index+step) % 5
+                for step in range(1, 5)
+                if self.players[(index+step) % 5]["alive"]
+            ]
+            for victim in targets:
+                if self.state != "playing":
+                    break
+                self.attack(index, victim, "Gatling")
+            return True
+
+        return False
+
+    def attack(self, attacker, target, source):
+        a = self.players[attacker]
+        t = self.players[target]
+
+        if target == 0:
+            a["hostility"] += 3
+        elif attacker != 0 and t["hostility"] >= 3:
+            a["hostility"] -= 1
+
+        self.log(f"{a['name']} dùng {source} nhằm vào {t['name']}.")
+
+        if "miss" in t["hand"]:
+            self.consume(target, "miss")
+            self.log(f"{t['name']} dùng NÉ ĐẠN!")
+            return
+
+        t["hp"] -= 1
+        self.log(f"{t['name']} mất 1 máu.")
+
+        if (
+            t["hp"] <= 0
+            and "beer" in t["hand"]
+            and len(self.alive_ids()) > 2
+        ):
+            self.consume(target, "beer")
+            t["hp"] += 1
+            self.log(f"{t['name']} dùng Bia tự cứu!")
+
+        if t["hp"] <= 0:
+            self.eliminate(target, attacker)
+
+    def eliminate(self, victim, killer):
+        player = self.players[victim]
+        player["alive"] = False
+
+        self.log(
+            f"{player['name']} bị loại! Vai trò: {ROLES[player['role']]}."
+        )
+
+        self.discard.extend(player["hand"])
+        player["hand"].clear()
+
+        for equipment in ("rifle", "scope"):
+            if player[equipment]:
+                self.discard.append(equipment)
+                player[equipment] = False
+
+        attacker = self.players[killer]
+
+        if player["role"] == "outlaw" and attacker["alive"]:
+            self.draw_cards(killer, 3)
+            self.log(f"{attacker['name']} nhận thưởng 3 lá vì hạ Tội phạm.")
+
+        if killer == 0 and player["role"] == "deputy":
+            self.discard.extend(attacker["hand"])
+            attacker["hand"].clear()
+            for equipment in ("rifle", "scope"):
+                if attacker[equipment]:
+                    self.discard.append(equipment)
+                    attacker[equipment] = False
+            self.log("Bắn nhầm đồng đội! Bạn mất toàn bộ bài và trang bị.")
+
+        self.check_victory()
+
+    def check_victory(self):
+        living = [p for p in self.players if p["alive"]]
+
+        if not self.players[0]["alive"]:
+            if len(living) == 1 and living[0]["role"] == "renegade":
+                self.result = "KẺ PHẢN BỘI CHIẾN THẮNG"
+            else:
+                self.result = "PHE TỘI PHẠM CHIẾN THẮNG"
+            self.state = "over"
+
+        elif not any(
+            p["alive"] and p["role"] in ("outlaw", "renegade")
+            for p in self.players
+        ):
+            self.result = "BẠN VÀ PHE CẢNH SÁT CHIẾN THẮNG!"
+            self.state = "over"
+
+    # =====================================================
+    # BOT
+    # =====================================================
+
+    def choose_target(self, index):
+        role = self.players[index]["role"]
+        candidates = [
+            i for i in self.alive_ids()
+            if i != index and self.in_range(index, i)
+        ]
+
+        if not candidates:
+            return None
+
+        if role == "outlaw":
+            if 0 in candidates:
+                return 0
+
+            # Nhan dien dong minh qua hanh dong,
+            # khong doc truc tiep vai tro nguoi khac.
+            candidates = [
+                i for i in candidates
+                if self.players[i]["hostility"] < 3
+            ]
+            if not candidates:
+                return None
+
+            return min(
+                candidates,
+                key=lambda i: (
+                    self.players[i]["hostility"],
+                    self.players[i]["hp"]
+                )
+            )
+
+        if role == "deputy":
+            suspects = [
+                i for i in candidates
+                if i != 0 and self.players[i]["hostility"] > 0
+            ]
+            if not suspects:
+                return None
+
+            return max(
+                suspects,
+                key=lambda i: (
+                    self.players[i]["hostility"],
+                    -self.players[i]["hp"]
+                )
+            )
+
+        # Ke phan boi giu canh sat truong song cho den cuoi.
+        others = [i for i in candidates if i != 0]
+        if others:
+            return min(
+                others,
+                key=lambda i: self.players[i]["hp"]
+            )
+
+        if len(self.alive_ids()) == 2 and 0 in candidates:
+            return 0
+
+        return None
+
+    def bot_action(self):
+        if self.state != "playing" or self.turn == 0:
+            return
+
+        index = self.turn
+        player = self.players[index]
+        hand = player["hand"]
+        self.bot_steps += 1
+
+        # Chan vong rut bai qua dai.
+        if self.bot_steps > 14:
+            self.end_turn()
+            return
+
+        action = None
+        target = None
+
+        if (
+            "beer" in hand
+            and player["hp"] < player["maxhp"]
+            and len(self.alive_ids()) > 2
+        ):
+            action = "beer"
+        elif "rifle" in hand and not player["rifle"]:
+            action = "rifle"
+        elif "scope" in hand and not player["scope"]:
+            action = "scope"
+        elif "stage" in hand:
+            action = "stage"
+        else:
+            if "bang" in hand and not self.bang_used:
+                target = self.choose_target(index)
+                if target is not None:
+                    action = "bang"
+
+            if action is None and "gatling" in hand:
+                role = player["role"]
+                # Pho canh sat khong dung Gatling vi trung sheriff.
+                # Ke phan boi tranh giet sheriff qua som.
+                safe_for_plan = (
+                    role == "outlaw"
+                    or (
+                        role == "renegade"
+                        and (
+                            len(self.alive_ids()) == 2
+                            or self.players[0]["hp"] >= 3
+                        )
+                    )
+                )
+                if safe_for_plan:
+                    action = "gatling"
+
+        if action is None:
+            self.end_turn()
+            return
+
+        self.use_card(index, action, target)
+        self.render()
+
+        if self.state == "playing":
+            self.schedule(self.bot_action, 850)
+
+    # =====================================================
+    # VE BAN CHOI
+    # =====================================================
+
+    def draw_player(self, index, x, y, w=195, h=163):
+        player = self.players[index]
+        active = self.turn == index and self.state == "playing"
+        targetable = (
+            self.state == "playing"
+            and self.turn == 0
+            and self.selected is not None
+            and index != 0
+            and player["alive"]
+            and self.in_range(0, index)
+        )
+
+        border = "#65bda2" if targetable else (
+            GOLD if active else "#8c7250"
+        )
+
+        self.rect(x+4, y+5, w, h, "#1b1815")
+        self.rect(
+            x, y, w, h,
+            "#352e24" if player["alive"] else "#292725",
+            border, 3 if active or targetable else 1
+        )
+
+        self.text(x+w/2, y+17, player["name"], 14, PAPER, True)
+        colors = ["#596a70", "#6f5744", "#87504b", "#53635b", "#646078"]
+
+        self.cowboy(
+            x+48, y+83, colors[index],
+            index == 0, player["alive"]
+        )
+
+        hp_color = "#d77c62" if player["hp"] <= 2 else "#8bc49e"
+        self.text(
+            x+123, y+55,
+            f"MÁU {max(0, player['hp'])}/{player['maxhp']}",
+            13, hp_color, True
+        )
+        self.text(
+            x+123, y+81,
+            f"{len(player['hand'])} lá bài",
+            12
+        )
+
+        equipment = []
+        if player["rifle"]:
+            equipment.append("Súng: 2")
+        if player["scope"]:
+            equipment.append("Ngắm: -1")
+
+        self.text(
+            x+122, y+105,
+            " | ".join(equipment) if equipment else "Súng: 1",
+            10, GOLD
+        )
+
+        revealed = index == 0 or not player["alive"] or self.state == "over"
+        role_label = ROLES[player["role"]] if revealed else "VAI TRÒ ẨN"
+
+        self.text(
+            x+w/2, y+h-21, role_label,
+            11, "#d4ba8c", True
+        )
+
+        self.player_rects.append(((x, y, x+w, y+h), index))
+
+    def draw_card(self, x, y, w, h, card, selected=False):
+        title, description, color = CARDS[card]
+        offset = -12 if selected else 0
+        y += offset
+
+        self.rect(x+3, y+5, w, h, "#201a15")
+        self.rect(
+            x, y, w, h, "#ecd7aa",
+            "#76d4ab" if selected else "#a28251",
+            3 if selected else 2
+        )
+
+        self.rect(x+5, y+5, w-10, 34, color)
+        self.text(x+w/2, y+22, title, 10, "#fff3d1", True)
+
+        cx, cy = x+w/2, y+78
+
+        if card == "bang":
+            self.star(cx, cy, 25, "#ab4935")
+            self.text(cx, cy+1, "!", 26, "#fff2b9", True)
+
+        elif card == "miss":
+            self.canvas.create_oval(
+                cx-23, cy-23, cx+23, cy+23,
+                outline=color, width=4
+            )
+            self.canvas.create_line(
+                cx-18, cy+20, cx+20, cy-20,
+                fill=color, width=5
+            )
+
+        elif card == "beer":
+            self.rect(cx-17, cy-16, 29, 38, "#c78f31", "#755322", 2)
+            self.canvas.create_arc(
+                cx+2, cy-12, cx+29, cy+20,
+                start=-90, extent=180, style="arc",
+                outline="#755322", width=5
+            )
+            self.canvas.create_oval(
+                cx-19, cy-23, cx+14, cy-9,
+                fill="#fff0cd", outline=""
+            )
+
+        elif card in ("rifle", "scope"):
+            self.canvas.create_line(
+                cx-26, cy+15, cx+25, cy-13,
+                fill="#544c40", width=7
+            )
+            if card == "scope":
+                self.canvas.create_oval(
+                    cx-16, cy-16, cx+16, cy+16,
+                    outline=color, width=4
+                )
+
+        elif card == "stage":
+            self.rect(cx-28, cy-15, 55, 31, "#9a7045", "#4e3828", 2)
+            for dx in (-17, 17):
+                self.canvas.create_oval(
+                    cx+dx-8, cy+11, cx+dx+8, cy+27,
+                    fill="#5a4935", outline="#30271e", width=2
+                )
+
+        else:
+            for dy in (-9, 0, 9):
+                self.canvas.create_line(
+                    cx-27, cy+dy, cx+24, cy+dy,
+                    fill="#524b40", width=5
+                )
+
+        self.text(
+            cx, y+h-30, description, 10, INK,
+            width=w-8
+        )
+
+    def render(self):
+        if self.state == "menu":
+            self.draw_menu()
+            return
+
+        self.wood()
+        self.buttons = []
+        self.hand_rects = []
+        self.player_rects = []
+
+        self.text(28, 27, "BANG!  MIỀN TÂY", 23, GOLD, True, anchor="w")
+        self.text(
+            817, 27,
+            f"Vòng {self.round_number}  •  Bộ bài: {len(self.deck)}",
+            12, PAPER, anchor="e"
+        )
+
+        self.button(838, 10, 123, 36, "Hướng dẫn", "help")
+        self.button(975, 10, 123, 36, "Ván mới", "new")
+
+        # Ban tron, thu tu vong: Ban -> Jack -> Rose -> Billy -> Tom.
+        self.canvas.create_oval(
+            61, 91, 797, 535,
+            fill="#253e35", outline="#9e7b48", width=12
+        )
+        self.canvas.create_oval(
+            77, 107, 781, 520,
+            outline="#667459", width=2
+        )
+
+        self.draw_player(1, 59, 275)
+        self.draw_player(2, 158, 73)
+        self.draw_player(3, 488, 73)
+        self.draw_player(4, 587, 275)
+
+        self.star(420, 315, 51, "#a88b4c")
+        self.text(420, 384, "THỊ TRẤN BỤI ĐỎ", 17, GOLD, True)
+
+        if self.state == "playing":
+            current = self.players[self.turn]["name"]
+            turn_text = "LƯỢT CỦA BẠN" if self.turn == 0 else f"LƯỢT: {current}"
+        else:
+            turn_text = "VÁN ĐẤU KẾT THÚC"
+
+        self.text(420, 422, turn_text, 16, "#e6d7b4", True)
+
+        p = self.players[0]
+        self.rect(50, 467, 748, 70, "#29271f", "#a38552", 2)
+        self.star(83, 500, 22, GOLD)
+
+        self.text(
+            117, 488,
+            f"BẠN • CẢNH SÁT TRƯỞNG • MÁU {max(0,p['hp'])}/5",
+            15, PAPER, True, anchor="w"
+        )
+        info = (
+            f"Tầm súng: {2 if p['rifle'] else 1}"
+            f"   |   Ống ngắm: {'Có' if p['scope'] else 'Không'}"
+            f"   |   BANG!: {'Đã dùng' if self.bang_used else 'Sẵn sàng'}"
+        )
+        self.text(117, 517, info, 11, GOLD, anchor="w")
+
+        # Nhat ky.
+        self.rect(824, 65, 278, 472, "#241f19", "#96774b", 2)
+        self.text(963, 87, "NHẬT KÝ THỊ TRẤN", 15, GOLD, True)
+
+        last_logs = self.logs[-10:]
+        for i, line in enumerate(last_logs):
+            self.text(
+                838, 117+i*40, line, 10,
+                "#e2d0ac", anchor="nw", width=250
+            )
+
+        self.button(
+            897, 555, 205, 48,
+            "KẾT THÚC LƯỢT", "end",
+            self.state == "playing" and self.turn == 0
+        )
+        self.button(897, 615, 205, 44, "MÀN HÌNH CHÍNH", "menu")
+
+        if self.selected is not None:
+            prompt = "Chọn đối thủ viền xanh để bắn • Nhấp lại lá bài để hủy"
+        elif self.turn == 0 and self.state == "playing":
+            prompt = "Nhấp bài để sử dụng. Né đạn được dùng tự động."
+        else:
+            prompt = "Quan sát hành động để suy đoán vai trò đối thủ."
+
+        self.text(30, 559, prompt, 12, "#f5ddaa", anchor="w")
+
+        hand = p["hand"]
+        count = len(hand)
+
+        card_w, card_h = 106, 160
+        spacing = min(116, 825/max(1, count))
+        total = (count-1)*spacing+card_w if count else 0
+        start_x = 25+max(0, (845-total)/2)
+
+        for index, card in enumerate(hand):
+            x = start_x+index*spacing
+            y = 594
+            chosen = self.selected == index
+            self.draw_card(x, y, card_w, card_h, card, chosen)
+            yy = y-12 if chosen else y
+            self.hand_rects.append(
+                ((x, yy, x+card_w, yy+card_h), index)
+            )
+
+        if not hand:
+            self.text(430, 673, "Bạn chưa có lá bài nào.", 18, "#c3ac85")
+
+        self.text(
+            30, 782,
+            "F2: ván mới  •  ESC: menu  •  Tự bỏ bài dư cuối lượt  •  Phiên bản luật giản lược",
+            10, "#baa283", anchor="w"
+        )
+
+        if self.state == "over":
+            self.draw_result()
+
+    def draw_result(self):
+        # Giu nhin thay vai tro da lat o phia tren.
+        self.rect(230, 267, 650, 198, "#1b211e", GOLD, 3)
+        self.text(
+            555, 310, self.result, 22,
+            "#a2d3aa" if self.players[0]["alive"] else "#edac88",
+            True, width=610
+        )
+        self.text(
+            555, 357,
+            "Các vai trò đã được công khai. Chơi lại để thử ván mới!",
+            13
+        )
+
+        # Khong nhan cac nut bi che.
+        self.buttons = []
+        self.button(287, 395, 240, 45, "CHƠI VÁN MỚI", "new")
+        self.button(582, 395, 240, 45, "VỀ MENU", "menu")
+
+    # =====================================================
+    # TUONG TAC
+    # =====================================================
+
+    @staticmethod
+    def contains(rect, x, y):
+        return rect[0] <= x <= rect[2] and rect[1] <= y <= rect[3]
+
+    def click(self, event):
+        x, y = event.x, event.y
+
+        for rect, action, enabled in reversed(self.buttons):
+            if self.contains(rect, x, y):
+                if not enabled:
+                    return
+                if action == "new":
+                    self.new_game()
+                elif action == "menu":
+                    self.show_menu()
+                elif action == "help":
+                    self.show_help()
+                elif action == "end":
+                    self.end_turn()
+                return
+
+        if self.state != "playing" or self.turn != 0:
+            return
+
+        if self.selected is not None:
+            for rect, index in self.player_rects:
+                if self.contains(rect, x, y):
+                    if self.use_card(0, "bang", index):
+                        self.selected = None
+                    self.render()
+                    return
+
+        # La ve sau nam tren, nen duyet nguoc.
+        for rect, index in reversed(self.hand_rects):
+            if not self.contains(rect, x, y):
+                continue
+
+            hand = self.players[0]["hand"]
+            if index >= len(hand):
+                return
+
+            card = hand[index]
+
+            if card == "bang":
+                if self.bang_used:
+                    self.log("Mỗi lượt chỉ được dùng 1 lá BANG!.")
+                    self.selected = None
+                else:
+                    self.selected = (
+                        None if self.selected == index else index
+                    )
+            else:
+                self.selected = None
+                self.use_card(0, card)
+
+            self.render()
+            return
+
+
+def main():
+    root = tk.Tk()
+    WesternGame(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
