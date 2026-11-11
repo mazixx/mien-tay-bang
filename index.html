@@ -1,1081 +1,1813 @@
-import tkinter as tk
-from tkinter import font
-import random
-import math
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#30271f">
+<title>Miền Tây: BANG!</title>
 
-
-# =========================================================
-# MIEN TAY: BANG!
-# Ban lay cam hung, luat gian luoc, 1 nguoi + 4 bot.
-# Khong can thu vien ngoai.
-# =========================================================
-
-W, H = 1120, 800
-
-ROLES = {
-    "sheriff": "CẢNH SÁT TRƯỞNG",
-    "deputy": "PHÓ CẢNH SÁT",
-    "outlaw": "TỘI PHẠM",
-    "renegade": "KẺ PHẢN BỘI",
+<style>
+:root {
+    color-scheme: dark;
+    --paper: #ead4a2;
+    --gold: #e9bc62;
+    --ink: #30281f;
+    --green: #76d4ab;
 }
 
-CARDS = {
-    "bang": ("BANG!", "Bắn 1 mục tiêu\ntrong tầm súng", "#aa3930"),
-    "miss": ("NÉ ĐẠN", "Tự động chặn\n1 phát bắn", "#397185"),
-    "beer": ("BIA", "Hồi 1 máu\nkhi còn >2 người", "#a87827"),
-    "stage": ("TIẾP TẾ", "Rút thêm\n2 lá bài", "#786142"),
-    "gatling": ("GATLING", "Bắn tất cả\nngười khác", "#824733"),
-    "rifle": ("SÚNG TRƯỜNG", "Trang bị\nTầm bắn = 2", "#405d6c"),
-    "scope": ("ỐNG NGẮM", "Trang bị\nKhoảng cách -1", "#536e59"),
+* {
+    box-sizing: border-box;
 }
 
-DECK_COUNTS = {
-    "bang": 30,
-    "miss": 22,
-    "beer": 12,
-    "stage": 8,
-    "gatling": 4,
-    "rifle": 5,
-    "scope": 5,
+[hidden] {
+    display: none !important;
 }
 
-BOT_NAMES = ["Jack Bụi", "Rose Đỏ", "Billy Sắt", "Tom Khói"]
+body {
+    margin: 0;
+    color: var(--paper);
+    background:
+        repeating-linear-gradient(
+            0deg,
+            #493425 0 57px,
+            #211b17 57px 60px,
+            #503a29 60px 117px,
+            #211b17 117px 120px
+        );
+    font: 15px system-ui, sans-serif;
+}
 
-PAPER = "#ead4a2"
-INK = "#30281f"
-GOLD = "#e9bc62"
-BG = "#201d1c"
+header,
+main {
+    width: min(1180px, 100%);
+    margin: auto;
+    padding: 14px;
+}
 
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
 
-class WesternGame:
-    def __init__(self, root):
-        self.root = root
-        root.title("Miền Tây: BANG! • Người đấu với bot")
-        root.resizable(False, False)
+h1 {
+    margin: 0;
+    color: var(--gold);
+    font-size: 25px;
+}
 
-        self.canvas = tk.Canvas(
-            root, width=W, height=H,
-            bg=BG, highlightthickness=0
-        )
-        self.canvas.pack()
+header p {
+    margin: 5px 0 0;
+    font-size: 13px;
+}
 
-        self.font_name = "Segoe UI"
-        available = set(font.families(root))
-        if self.font_name not in available:
-            self.font_name = "DejaVu Sans"
+button,
+select {
+    min-height: 43px;
+    border: 1px solid #b39866;
+    border-radius: 8px;
+    padding: 9px 13px;
+    color: #fff0cc;
+    background: #805333;
+    font: inherit;
+}
 
-        self.canvas.bind("<Button-1>", self.click)
-        root.bind("<Escape>", lambda e: self.show_menu())
-        root.bind("<F2>", lambda e: self.new_game())
+button {
+    cursor: pointer;
+    touch-action: manipulation;
+}
 
-        self.state = "menu"
-        self.generation = 0
-        self.buttons = []
-        self.hand_rects = []
-        self.player_rects = []
-        self.selected = None
+button:hover:not(:disabled) {
+    filter: brightness(1.12);
+}
 
-        self.draw_menu()
+button:disabled {
+    cursor: default;
+    opacity: .55;
+}
 
-    # =====================================================
-    # DO HOA CO BAN
-    # =====================================================
+button:focus-visible,
+select:focus-visible {
+    outline: 3px solid var(--green);
+    outline-offset: 3px;
+}
 
-    def text(self, x, y, value, size=14, color=PAPER,
-             bold=False, anchor="center", width=None):
-        options = {
-            "text": value,
-            "fill": color,
-            "font": (
-                self.font_name,
-                size,
-                "bold" if bold else "normal"
-            ),
-            "anchor": anchor,
+.toolbar,
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.panel {
+    background: #251f1af0;
+    border: 2px solid #a9864f;
+    border-radius: 12px;
+    padding: 15px;
+}
+
+#menu {
+    max-width: 860px;
+    margin: 15px auto;
+    text-align: center;
+    padding: 30px 20px;
+}
+
+.menu-title {
+    margin: 5px 0;
+    font-size: clamp(55px, 12vw, 90px);
+    color: #dc5645;
+    text-shadow: 3px 4px #140e0a;
+}
+
+.menu-subtitle {
+    color: var(--gold);
+    font-size: 24px;
+}
+
+.rules-paper {
+    margin: 25px 0;
+    padding: 20px;
+    color: var(--ink);
+    background: var(--paper);
+    border: 3px solid #b39866;
+    border-radius: 8px;
+    text-align: left;
+    line-height: 1.65;
+}
+
+.rules-paper h2 {
+    margin-top: 0;
+    text-align: center;
+    font-size: 21px;
+}
+
+.rules-paper ul {
+    padding-left: 21px;
+}
+
+.primary {
+    background: #38634a;
+    font-weight: bold;
+}
+
+#start {
+    width: min(430px, 100%);
+    min-height: 55px;
+    font-size: 18px;
+}
+
+.layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 290px;
+    gap: 14px;
+}
+
+.board-column,
+aside {
+    min-width: 0;
+}
+
+.table {
+    position: relative;
+    padding: 20px;
+    background: #253e35;
+    border: 9px solid #9e7b48;
+    border-radius: 85px;
+    box-shadow: inset 0 0 0 2px #667459;
+}
+
+.bot-grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 70px 25px;
+}
+
+.seat {
+    width: 100%;
+    max-width: 280px;
+    min-width: 0;
+    justify-self: center;
+    padding: 10px;
+    border: 2px solid #8c7250;
+    background: #352e24;
+    color: var(--paper);
+    border-radius: 12px;
+    text-align: center;
+}
+
+.seat:disabled {
+    opacity: 1;
+}
+
+.seat.active {
+    border: 3px solid var(--gold);
+    box-shadow: 0 0 14px #e9bc6250;
+}
+
+.seat.targetable {
+    border: 3px solid var(--green);
+    background: #2b4438;
+}
+
+.seat.dead {
+    background: #292725;
+    color: #b2aaa0;
+}
+
+.seat-name {
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.seat-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.portrait {
+    width: 74px;
+    flex: 0 0 74px;
+}
+
+.portrait svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.seat-info {
+    font-size: 12px;
+    line-height: 1.8;
+}
+
+.hp {
+    color: #8bc49e;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.hp.low {
+    color: #ef9c86;
+}
+
+.equipment,
+.role {
+    color: #d4ba8c;
+    font-size: 11px;
+}
+
+.role {
+    margin-top: 5px;
+    font-weight: bold;
+}
+
+.table-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: var(--gold);
+    pointer-events: none;
+    width: 85%;
+}
+
+.table-center strong {
+    display: block;
+    font-size: 16px;
+}
+
+.table-center span {
+    font-size: 12px;
+}
+
+#human {
+    margin-top: 12px;
+    border: 2px solid #a38552;
+    border-radius: 10px;
+    background: #29271f;
+    padding: 12px;
+}
+
+#human.active {
+    border-color: var(--gold);
+}
+
+#human h2 {
+    font-size: 17px;
+    margin: 0 0 7px;
+    color: var(--paper);
+}
+
+#human p {
+    margin: 0;
+    color: var(--gold);
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+#status {
+    margin: 0 0 10px;
+    font-size: 17px;
+    color: var(--gold);
+}
+
+#statistics {
+    margin-bottom: 12px;
+    color: #cbb998;
+    font-size: 13px;
+}
+
+#logs {
+    height: 395px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 8px;
+    background: #1b1713;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+#logs p {
+    margin: 0;
+    padding: 7px 0;
+    border-bottom: 1px solid #47382a;
+    overflow-wrap: anywhere;
+}
+
+.controls {
+    margin-top: 12px;
+}
+
+.controls button {
+    flex: 1 1 120px;
+}
+
+#result {
+    margin-bottom: 14px;
+    background: #1b211e;
+    border: 3px solid var(--gold);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+}
+
+#result h2 {
+    margin: 0 0 8px;
+    font-size: 22px;
+    color: #a2d3aa;
+}
+
+#result p {
+    line-height: 1.6;
+}
+
+.hand-panel {
+    margin-top: 15px;
+}
+
+#prompt {
+    margin: 0 0 5px;
+    color: #f5ddaa;
+    font-size: 13px;
+}
+
+#hand {
+    display: flex;
+    gap: 9px;
+    overflow-x: auto;
+    padding: 18px 4px 10px;
+    min-height: 195px;
+    align-items: flex-end;
+}
+
+.card {
+    flex: 0 0 118px;
+    width: 118px;
+    height: 174px;
+    min-height: 174px;
+    padding: 5px;
+    background: #ecd7aa;
+    color: var(--ink);
+    border: 2px solid #a28251;
+    border-radius: 8px;
+    box-shadow: 3px 5px #140f0b80;
+}
+
+.card:disabled {
+    opacity: .8;
+}
+
+.card.selected {
+    transform: translateY(-10px);
+    border: 3px solid var(--green);
+}
+
+.card-title {
+    display: block;
+    padding: 8px 1px;
+    min-height: 34px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #fff3d1;
+    border-radius: 4px;
+}
+
+.card-icon {
+    display: block;
+    font-size: 37px;
+    line-height: 62px;
+}
+
+.card-description {
+    display: block;
+    white-space: pre-line;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.footer-note {
+    font-size: 12px;
+    color: #c8b28d;
+    text-align: center;
+    line-height: 1.7;
+    margin: 15px 0;
+}
+
+dialog {
+    width: min(750px, calc(100% - 24px));
+    max-height: 85vh;
+    padding: 20px;
+    border: 3px solid #b39866;
+    border-radius: 12px;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.65;
+}
+
+dialog::backdrop {
+    background: #0009;
+}
+
+dialog h2 {
+    margin-top: 0;
+}
+
+dialog h3 {
+    margin-bottom: 5px;
+}
+
+dialog ul {
+    padding-left: 22px;
+}
+
+@media (max-width: 850px) {
+    .layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    #logs {
+        height: 230px;
+    }
+
+    .table {
+        max-width: 750px;
+        margin: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    header,
+    main {
+        padding: 8px;
+    }
+
+    h1 {
+        font-size: 21px;
+    }
+
+    .table {
+        padding: 10px;
+        border-width: 5px;
+        border-radius: 35px;
+    }
+
+    .bot-grid {
+        gap: 65px 8px;
+    }
+
+    .seat {
+        padding: 7px 3px;
+    }
+
+    .seat-name {
+        font-size: 13px;
+    }
+
+    .seat-body {
+        gap: 2px;
+    }
+
+    .portrait {
+        width: 47px;
+        flex-basis: 47px;
+    }
+
+    .seat-info {
+        font-size: 11px;
+    }
+
+    .hp {
+        font-size: 12px;
+    }
+
+    .role {
+        font-size: 10px;
+    }
+
+    .table-center strong {
+        font-size: 13px;
+    }
+
+    .panel {
+        padding: 10px;
+    }
+}
+</style>
+</head>
+
+<body>
+<header>
+    <div>
+        <h1>★ MIỀN TÂY: BANG!</h1>
+        <p>Luật giản lược • 1 người + 4 bot • Chạy trực tiếp trên trình duyệt</p>
+    </div>
+
+    <div class="toolbar">
+        <label>
+            Tốc độ bot
+            <select id="speed">
+                <option value="1.6">Chậm</option>
+                <option value="1" selected>Vừa</option>
+                <option value="0.35">Nhanh</option>
+            </select>
+        </label>
+        <button id="help-button" type="button">Hướng dẫn</button>
+    </div>
+</header>
+
+<main>
+    <section id="menu" class="panel">
+        <div class="menu-title">BANG!</div>
+        <div class="menu-subtitle">CUỘC ĐẤU MIỀN TÂY</div>
+
+        <div class="rules-paper">
+            <h2>BẠN LÀ CẢNH SÁT TRƯỞNG</h2>
+            <ul>
+                <li>Loại 2 Tội phạm và 1 Kẻ phản bội để thắng.</li>
+                <li>Phó cảnh sát là đồng đội. Bắn nhầm sẽ bị phạt!</li>
+                <li>Mỗi lượt rút 2 lá, tối đa 1 lá BANG! mỗi lượt.</li>
+                <li>Chạm BANG!, sau đó chạm đối thủ trong tầm súng.</li>
+                <li>Né đạn tự dùng; Bia hồi máu hoặc tự cứu khi đủ điều kiện.</li>
+                <li>Kết thúc lượt tự bỏ bài dư, ưu tiên giữ Né đạn và Bia.</li>
+                <li>Vai bot chỉ lộ khi bị loại hoặc khi ván kết thúc.</li>
+            </ul>
+        </div>
+
+        <button id="start" class="primary" type="button">
+            BẮT ĐẦU VÁN MỚI
+        </button>
+
+        <p class="footer-note">
+            Bản lấy cảm hứng, không phải toàn bộ luật BANG! gốc.<br>
+            Không cần đăng nhập hoặc cài thư viện.
+        </p>
+    </section>
+
+    <section id="game" hidden>
+        <section id="result" hidden aria-live="polite">
+            <h2 id="result-title"></h2>
+            <p>Các vai trò đã được công khai. Chơi lại để thử một ván mới!</p>
+            <button id="play-again" class="primary" type="button">
+                CHƠI VÁN MỚI
+            </button>
+            <button id="result-menu" type="button">VỀ MENU</button>
+        </section>
+
+        <div class="layout">
+            <div class="board-column">
+                <section class="table">
+                    <div id="bots" class="bot-grid"></div>
+
+                    <div class="table-center">
+                        <strong>★ THỊ TRẤN BỤI ĐỎ ★</strong>
+                        <span id="table-turn"></span>
+                    </div>
+                </section>
+
+                <section id="human">
+                    <h2 id="human-title"></h2>
+                    <p id="human-info"></p>
+                </section>
+            </div>
+
+            <aside class="panel">
+                <h2 id="status" aria-live="polite"></h2>
+                <div id="statistics"></div>
+
+                <h3>NHẬT KÝ THỊ TRẤN</h3>
+                <div id="logs"></div>
+
+                <div class="controls">
+                    <button id="end" class="primary" type="button">
+                        KẾT THÚC LƯỢT
+                    </button>
+                    <button id="pause" type="button">Tạm dừng</button>
+                    <button id="new" type="button">Ván mới</button>
+                    <button id="back" type="button">Về menu</button>
+                </div>
+            </aside>
+        </div>
+
+        <section class="panel hand-panel">
+            <p id="prompt"></p>
+            <div id="hand" aria-label="Bài trên tay bạn"></div>
+        </section>
+
+        <p class="footer-note">
+            Chạm lá bài để dùng • Chạm lại BANG! đang chọn để hủy<br>
+            F2: ván mới • ESC: menu • Chuyển tab sẽ tự tạm dừng<br>
+            Tải lại trang sẽ mất ván hiện tại.
+        </p>
+    </section>
+</main>
+
+<dialog id="help">
+    <h2>HƯỚNG DẪN MIỀN TÂY: BANG!</h2>
+
+    <h3>Mục tiêu</h3>
+        Bạn là Cảnh sát trưởng, cần loại hết Tội phạm và Kẻ phản bội.
+        Phó cảnh sát cùng phe với bạn.
+        Tội phạm muốn hạ Cảnh sát trưởng.
+        Kẻ phản bội chỉ thắng nếu là người sống cuối cùng.
+    </p>
+
+    <h3>7 loại bài</h3>
+    <ul>
+        <li><strong>BANG!</strong>: bắn một đối thủ trong tầm; tối đa một lần mỗi lượt.</li>
+        <li><strong>Né đạn</strong>: tự động dùng để tránh một phát BANG!</li>
+        <li><strong>Bia</strong>: hồi một máu; tự cứu khi hết máu nếu còn hơn hai người sống.</li>
+        <li><strong>Xe ngựa</strong>: rút thêm hai lá.</li>
+        <li><strong>Tiếp tế</strong>: rút thêm ba lá.</li>
+        <li><strong>Súng trường</strong>: trang bị, nâng tầm bắn lên ba.</li>
+        <li><strong>Ngựa Mustang</strong>: trang bị, tăng khoảng cách khi người khác bắn bạn thêm một.</li>
+    </ul>
+
+    <h3>Khoảng cách và thưởng/phạt</h3>
+    <ul>
+        <li>Khoảng cách tính theo vòng các người chơi còn sống.</li>
+        <li>Hạ Tội phạm: người hạ được rút ba lá.</li>
+        <li>Cảnh sát trưởng hạ Phó cảnh sát: mất toàn bộ bài trên tay và trang bị.</li>
+        <li>Giới hạn bài trên tay khi kết thúc lượt bằng số máu hiện tại.</li>
+        <li>Bot dùng vai của mình và hành động công khai để chọn mục tiêu; không nhìn bài của bạn.</li>
+    </ul>
+
+    <p>
+        Đây là phiên bản giản lược, không bao gồm mọi lá bài
+        và luật của trò chơi BANG! thương mại.
+    </p>
+
+    <button id="close-help" type="button">ĐÓNG HƯỚNG DẪN</button>
+</dialog>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+
+const ROLE = {
+    sheriff: "Cảnh sát trưởng",
+    deputy: "Phó cảnh sát",
+    outlaw: "Tội phạm",
+    renegade: "Kẻ phản bội"
+};
+
+const CARDS = {
+    BANG: {
+        name: "BANG!",
+        icon: "🔫",
+        description: "Bắn một đối thủ\nTối đa 1 lần/lượt",
+        color: "#a43d32"
+    },
+    MISS: {
+        name: "NÉ ĐẠN",
+        icon: "🛡️",
+        description: "Tự dùng khi bị bắn\nTránh một phát đạn",
+        color: "#38677b"
+    },
+    BEER: {
+        name: "BIA",
+        icon: "🍺",
+        description: "Hồi một máu\nCó thể tự cứu",
+        color: "#9c7527"
+    },
+    DRAW2: {
+        name: "XE NGỰA",
+        icon: "🐎",
+        description: "Dùng ngay\nRút thêm hai lá",
+        color: "#73513c"
+    },
+    DRAW3: {
+        name: "TIẾP TẾ",
+        icon: "📦",
+        description: "Dùng ngay\nRút thêm ba lá",
+        color: "#65558b"
+    },
+    RIFLE: {
+        name: "SÚNG TRƯỜNG",
+        icon: "🎯",
+        description: "Trang bị\nTầm bắn bằng ba",
+        color: "#466c48"
+    },
+    MUSTANG: {
+        name: "NGỰA MUSTANG",
+        icon: "🏇",
+        description: "Trang bị\nĐối thủ cách bạn +1",
+        color: "#316b75"
+    }
+};
+
+let game = null;
+let botTimer = null;
+let timerGeneration = 0;
+
+function shuffle(items) {
+    const result = [...items];
+
+    for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+    }
+
+    return result;
+}
+
+function makeDeck() {
+    const quantities = {
+        BANG: 25,
+        MISS: 15,
+        BEER: 12,
+        DRAW2: 6,
+        DRAW3: 6,
+        RIFLE: 6,
+        MUSTANG: 8
+    };
+
+    const cards = [];
+
+    for (const [type, quantity] of Object.entries(quantities)) {
+        for (let i = 0; i < quantity; i++) {
+            cards.push(type);
         }
-        if width:
-            options["width"] = width
-        return self.canvas.create_text(x, y, **options)
+    }
 
-    def rect(self, x, y, w, h, fill, outline="", width=1):
-        return self.canvas.create_rectangle(
-            x, y, x+w, y+h,
-            fill=fill, outline=outline, width=width
-        )
+    return shuffle(cards);
+}
 
-    def button(self, x, y, w, h, label, action, enabled=True):
-        fill = "#95633a" if enabled else "#45413b"
-        self.rect(x+3, y+4, w, h, "#151414")
-        self.rect(x, y, w, h, fill, "#d8b577" if enabled else "#686153", 2)
-        self.text(
-            x+w/2, y+h/2, label, 13,
-            "#fff0cc" if enabled else "#9e9789", True
-        )
-        self.buttons.append(((x, y, x+w, y+h), action, enabled))
+function stopBotTimer() {
+    timerGeneration++;
 
-    def wood(self):
-        cv = self.canvas
-        cv.delete("all")
-        self.rect(0, 0, W, H, "#30271f")
+    if (botTimer !== null) {
+        clearTimeout(botTimer);
+        botTimer = null;
+    }
+}
 
-        for i in range(14):
-            y = i * 60
-            colors = ["#473326", "#503a29", "#493425"]
-            self.rect(0, y, W, 59, colors[i % 3])
-            cv.create_line(0, y+59, W, y+59, fill="#211b17", width=2)
+function alivePlayers() {
+    return game.players.filter(player => player.alive);
+}
 
-            for j in range(6):
-                x = (j*193 + i*31) % W
-                cv.create_line(
-                    x, y+18, min(W, x+118), y+21,
-                    fill="#5a412e", width=1
-                )
+function currentPlayer() {
+    return game.players[game.turn];
+}
 
-    def star(self, x, y, radius, color):
-        points = []
-        for i in range(10):
-            angle = -math.pi/2 + i*math.pi/5
-            r = radius if i % 2 == 0 else radius*0.45
-            points.extend([x+math.cos(angle)*r, y+math.sin(angle)*r])
-        self.canvas.create_polygon(
-            points, fill=color, outline="#f6dc94", width=1
-        )
+function addLog(text) {
+    game.logs.push(text);
 
-    def cowboy(self, x, y, color, sheriff=False, alive=True):
-        cv = self.canvas
-        skin = "#cfab7e" if alive else "#7a756b"
-        coat = color if alive else "#5a5550"
+    if (game.logs.length > 160) {
+        game.logs.shift();
+    }
+}
 
-        # Vai, co, dau.
-        cv.create_polygon(
-            x-29, y+47, x-23, y+14, x, y+6,
-            x+23, y+14, x+29, y+47,
-            fill=coat, outline="#211b17", width=2
-        )
-        self.rect(x-6, y+4, 12, 16, skin)
-        cv.create_oval(
-            x-16, y-28, x+16, y+12,
-            fill=skin, outline="#4d3728", width=2
-        )
+function drawCards(player, amount) {
+    let drawn = 0;
 
-        # Mu cao boi.
-        cv.create_polygon(
-            x-20, y-25, x-13, y-48,
-            x+10, y-48, x+21, y-25,
-            fill="#292723", outline="#b3996e", width=2
-        )
-        cv.create_oval(
-            x-35, y-31, x+35, y-18,
-            fill="#292723", outline="#b3996e", width=2
-        )
+    for (let i = 0; i < amount; i++) {
+        if (game.deck.length === 0) {
+            if (game.discard.length === 0) {
+                break;
+            }
 
-        cv.create_line(x-10, y-9, x-3, y-9, fill="#322a23", width=2)
-        cv.create_line(x+4, y-9, x+11, y-9, fill="#322a23", width=2)
-        cv.create_line(x-5, y+3, x+6, y+3, fill="#74533a", width=2)
-
-        # Khan.
-        cv.create_polygon(
-            x-16, y+13, x+15, y+13, x+2, y+29,
-            fill="#9d3f33", outline=""
-        )
-
-        if sheriff:
-            self.star(x+16, y+30, 10, GOLD)
-
-    # =====================================================
-    # MENU VA HUONG DAN
-    # =====================================================
-
-    def show_menu(self):
-        self.generation += 1
-        self.state = "menu"
-        self.draw_menu()
-
-    def draw_menu(self):
-        self.wood()
-        self.buttons = []
-
-        self.rect(76, 52, 970, 697, "#251f1a", "#a9864f", 3)
-        self.star(185, 146, 55, "#b28a43")
-        self.star(937, 146, 55, "#b28a43")
-
-        self.text(560, 125, "BANG!", 76, "#dc5645", True)
-        self.text(560, 209, "CUỘC ĐẤU MIỀN TÂY", 27, GOLD, True)
-        self.text(
-            560, 252,
-            "Game thẻ bài lấy cảm hứng • Luật giản lược • 1 người + 4 bot",
-            14
-        )
-
-        self.rect(148, 294, 824, 298, PAPER, "#b39866", 3)
-        self.text(560, 323, "BẠN LÀ CẢNH SÁT TRƯỞNG", 24, INK, True)
-
-        rules = [
-            "Tìm và loại 2 Tội phạm cùng 1 Kẻ phản bội. Đừng bắn nhầm Phó cảnh sát!",
-            "Mỗi lượt rút 2 lá. Chỉ được dùng 1 lá BANG! trong một lượt.",
-            "Nhấp lá bài để dùng. Với BANG!, tiếp tục nhấp vào mục tiêu.",
-            "Né đạn được dùng tự động. Bia hồi máu; Súng và Ống ngắm là trang bị.",
-            "Kết thúc lượt: tự bỏ bài dư để số lá còn lại không vượt quá máu.",
-            "Vai trò bot chỉ lộ khi bị loại. Bot suy đoán qua hành động trên bàn.",
-        ]
-
-        for i, value in enumerate(rules):
-            self.text(175, 367+i*34, value, 13, INK, anchor="w")
-
-        self.button(
-            330, 624, 460, 60,
-            "BẮT ĐẦU VÁN MỚI", "new"
-        )
-        self.text(
-            560, 718,
-            "Không dùng hình ảnh từ bộ bài gốc • F2: ván mới • ESC: màn hình chính",
-            12, "#ad9f89"
-        )
-
-    def show_help(self):
-        win = tk.Toplevel(self.root)
-        win.title("Hướng dẫn")
-        win.configure(bg=PAPER)
-        win.resizable(False, False)
-
-        message = (
-            "MỤC TIÊU\n"
-            "Bạn là Cảnh sát trưởng. Loại hết Tội phạm và Kẻ phản bội để thắng.\n"
-            "Phó cảnh sát đứng cùng phe với bạn.\n\n"
-            "THẺ BÀI\n"
-            "• BANG!: gây 1 sát thương, cần trong tầm, tối đa 1 lá/lượt.\n"
-            "• Né đạn: tự dùng để chặn BANG! hoặc Gatling.\n"
-            "• Bia: hồi 1 máu, không vượt máu tối đa; vô hiệu khi chỉ còn 2 người.\n"
-            "• Bia tự cứu khi máu về 0 nếu vẫn còn hơn 2 người sống.\n"
-            "• Tiếp tế: rút thêm 2 lá.\n"
-            "• Gatling: tấn công từng người còn lại, không giới hạn tầm.\n"
-            "• Súng trường: tầm bắn tăng lên 2.\n"
-            "• Ống ngắm: giảm khoảng cách tới mục tiêu đi 1, tối thiểu là 1.\n\n"
-            "KHOẢNG CÁCH\n"
-            "Tính theo đường ngắn nhất quanh vòng người chơi còn sống.\n"
-            "Người bị loại không còn tính vào khoảng cách.\n\n"
-            "THƯỞNG / PHẠT\n"
-            "Ai hạ Tội phạm được rút 3 lá.\n"
-            "Cảnh sát trưởng hạ Phó cảnh sát: mất hết bài và trang bị.\n\n"
-            "ĐIỀU KHIỂN\n"
-            "Nhấp lá bài. Nếu chọn BANG!, nhấp một đối thủ để bắn.\n"
-            "Nhấp lại lá đang chọn để bỏ chọn.\n"
-            "Cuối lượt tự bỏ bài dư. Né đạn và Bia được ưu tiên giữ lại.\n\n"
-            "Đây là luật giản lược, chưa có mọi lá bài và nhân vật của BANG!."
-        )
-
-        tk.Label(
-            win, text=message,
-            justify="left", anchor="w",
-            bg=PAPER, fg=INK,
-            font=(self.font_name, 11),
-            padx=24, pady=20,
-            wraplength=730
-        ).pack()
-
-    # =====================================================
-    # QUAN LY VAN BAI
-    # =====================================================
-
-    def new_game(self):
-        self.generation += 1
-        self.state = "playing"
-        self.selected = None
-        self.logs = []
-        self.result = ""
-        self.turn = 0
-        self.round_number = 1
-        self.bang_used = False
-        self.bot_steps = 0
-
-        roles = ["deputy", "outlaw", "outlaw", "renegade"]
-        random.shuffle(roles)
-
-        self.players = []
-        all_roles = ["sheriff"] + roles
-
-        for i, role in enumerate(all_roles):
-            maximum = 5 if i == 0 else 4
-            self.players.append({
-                "name": "Bạn",
-                "role": role,
-                "hp": maximum,
-                "maxhp": maximum,
-                "hand": [],
-                "alive": True,
-                "rifle": False,
-                "scope": False,
-                # Muc do thu dich voi canh sat truong,
-                # duoc cap nhat tu hanh dong cong khai.
-                "hostility": 0,
-            })
-            if i:
-                self.players[i]["name"] = BOT_NAMES[i-1]
-
-        self.deck = [
-            card
-            for card, count in DECK_COUNTS.items()
-            for _ in range(count)
-        ]
-        random.shuffle(self.deck)
-        self.discard = []
-
-        for i in range(5):
-            self.draw_cards(i, self.players[i]["maxhp"])
-
-        self.log("Một cuộc đấu mới bắt đầu tại thị trấn Bụi Đỏ.")
-        self.log("Bạn là Cảnh sát trưởng. Các vai trò còn lại đang được giấu.")
-        self.begin_turn(0)
-
-    def schedule(self, callback, delay=750):
-        token = self.generation
-
-        def run():
-            if token == self.generation and self.state == "playing":
-                callback()
-
-        self.root.after(delay, run)
-
-    def log(self, text):
-        self.logs.append(text)
-        self.logs = self.logs[-80:]
-
-    def alive_ids(self):
-        return [
-            i for i, player in enumerate(self.players)
-            if player["alive"]
-        ]
-
-    def draw_cards(self, index, number):
-        hand = self.players[index]["hand"]
-
-        for _ in range(number):
-            if not self.deck:
-                if not self.discard:
-                    break
-                self.deck = self.discard[:]
-                self.discard.clear()
-                random.shuffle(self.deck)
-
-            hand.append(self.deck.pop())
-
-    def consume(self, index, card):
-        self.players[index]["hand"].remove(card)
-        self.discard.append(card)
-
-    def distance(self, attacker, target):
-        alive = self.alive_ids()
-        a, b = alive.index(attacker), alive.index(target)
-        gap = abs(a-b)
-        distance = min(gap, len(alive)-gap)
-        if self.players[attacker]["scope"]:
-            distance -= 1
-        return max(1, distance)
-
-    def in_range(self, attacker, target):
-        gun_range = 2 if self.players[attacker]["rifle"] else 1
-        return self.distance(attacker, target) <= gun_range
-
-    def begin_turn(self, index):
-        if self.state != "playing":
-            return
-
-        self.turn = index
-        self.selected = None
-        self.bang_used = False
-        self.bot_steps = 0
-        self.draw_cards(index, 2)
-        self.log(f"Đến lượt {self.players[index]['name']} — rút 2 lá.")
-        self.render()
-
-        if index != 0:
-            self.schedule(self.bot_action, 1000)
-
-    def trim_hand(self, index):
-        player = self.players[index]
-        priority = {
-            "miss": 8,
-            "beer": 7,
-            "bang": 5,
-            "gatling": 6,
-            "stage": 4,
-            "rifle": 2,
-            "scope": 2,
+            game.deck = shuffle(game.discard);
+            game.discard = [];
         }
 
-        removed = 0
-        while len(player["hand"]) > player["hp"]:
-            card = min(
-                player["hand"],
-                key=lambda item: (
-                    0 if (
-                        item == "rifle" and player["rifle"]
-                        or item == "scope" and player["scope"]
-                    ) else priority[item]
-                )
-            )
-            self.consume(index, card)
-            removed += 1
+        player.hand.push(game.deck.pop());
+        drawn++;
+    }
 
-        if removed:
-            self.log(f"{player['name']} bỏ {removed} lá dư cuối lượt.")
+    return drawn;
+}
 
-    def end_turn(self):
-        if self.state != "playing":
-            return
+function consumeCard(player, index) {
+    const [type] = player.hand.splice(index, 1);
+    game.discard.push(type);
+    return type;
+}
 
-        self.trim_hand(self.turn)
-        alive = self.alive_ids()
-        next_index = alive[(alive.index(self.turn)+1) % len(alive)]
+function rangeOf(player) {
+    return player.rifle ? 3 : 1;
+}
 
-        if next_index <= self.turn:
-            self.round_number += 1
+function distanceBetween(attacker, target) {
+    const living = alivePlayers();
 
-        self.begin_turn(next_index)
+    const a = living.findIndex(player => player.id === attacker.id);
+    const b = living.findIndex(player => player.id === target.id);
 
-    def use_card(self, index, card, target=None):
-        if self.state != "playing":
-            return False
+    if (a < 0 || b < 0 || a === b) {
+        return Infinity;
+    }
 
-        player = self.players[index]
+    const direct = Math.abs(a - b);
+    const circular = Math.min(direct, living.length - direct);
 
-        if card not in player["hand"]:
-            return False
+    return circular + (target.mustang ? 1 : 0);
+}
 
-        if card == "miss":
-            if index == 0:
-                self.log("Né đạn sẽ tự động được dùng khi bạn bị tấn công.")
-            return False
+function targetsFor(player) {
+    return alivePlayers().filter(target =>
+        target.id !== player.id
+        && distanceBetween(player, target) <= rangeOf(player)
+    );
+}
 
-        if card == "bang":
-            if self.bang_used:
-                if index == 0:
-                    self.log("Bạn đã dùng BANG! trong lượt này.")
-                return False
+function discardEverything(player) {
+    game.discard.push(...player.hand);
+    player.hand = [];
+
+    if (player.rifle) {
+        game.discard.push("RIFLE");
+    }
+
+    if (player.mustang) {
+        game.discard.push("MUSTANG");
+    }
+
+    player.rifle = false;
+    player.mustang = false;
+}
+
+function finishGame(message) {
+    game.over = true;
+    game.result = message;
+    game.selected = null;
+
+    stopBotTimer();
+    addLog("★ " + message);
+}
+
+function checkVictory() {
+    const living = alivePlayers();
+    const sheriff = game.players[0];
+
+    if (!sheriff.alive) {
+        if (
+            living.length === 1
+            && living[0].role === "renegade"
+        ) {
+            finishGame("KẺ PHẢN BỘI THẮNG — là người sống cuối cùng!");
+        } else {
+            finishGame("TỘI PHẠM THẮNG — Cảnh sát trưởng đã bị hạ!");
+        }
+
+        return true;
+    }
+
+    const enemiesRemain = living.some(player =>
+        player.role === "outlaw"
+        || player.role === "renegade"
+    );
+
+    if (!enemiesRemain) {
+        finishGame("BẠN THẮNG — Cảnh sát trưởng và Phó cảnh sát chiến thắng!");
+        return true;
+    }
+
+    return false;
+}
+
+function eliminate(target, attacker) {
+    target.alive = false;
+    target.hp = 0;
+
+    addLog(
+        `☠ ${target.name} bị loại. Vai: ${ROLE[target.role]}.`
+    );
+
+    discardEverything(target);
+
+    if (
+        target.role === "outlaw"
+        && attacker.alive
+    ) {
+        const drawn = drawCards(attacker, 3);
+
+        addLog(
+            `💰 ${attacker.name} hạ Tội phạm, được rút ${drawn} lá.`
+        );
+    }
+
+    if (
+        attacker.role === "sheriff"
+        && target.role === "deputy"
+    ) {
+        discardEverything(attacker);
+
+        addLog(
+            "⚠ Bạn hạ nhầm Phó cảnh sát! "
+            + "Mất toàn bộ bài trên tay và trang bị."
+        );
+    }
+
+    checkVictory();
+}
+
+function fireBang(attacker, target, cardIndex) {
+    if (
+        game.over
+        || game.paused
+        || !attacker.alive
+        || !target.alive
+        || attacker.id === target.id
+        || attacker.bangUsed
+        || attacker.hand[cardIndex] !== "BANG"
+        || distanceBetween(attacker, target) > rangeOf(attacker)
+    ) {
+        return false;
+    }
+
+    consumeCard(attacker, cardIndex);
+    attacker.bangUsed = true;
+
+    // Dấu hiệu công khai: bắn Cảnh sát trưởng làm tăng nghi ngờ.
+    if (target.role === "sheriff") {
+        attacker.suspicion = Math.min(8, attacker.suspicion + 3);
+    } else if (target.suspicion >= 3) {
+        attacker.suspicion = Math.max(-3, attacker.suspicion - 1);
+    }
+
+    addLog(`🔫 ${attacker.name} bắn BANG! vào ${target.name}.`);
+
+    const missIndex = target.hand.indexOf("MISS");
+
+    if (missIndex >= 0) {
+        consumeCard(target, missIndex);
+        addLog(`🛡 ${target.name} tự dùng Né đạn!`);
+        return true;
+    }
+
+    target.hp--;
+
+    addLog(`💥 ${target.name} mất một máu, còn ${target.hp}.`);
+
+    if (target.hp <= 0 && alivePlayers().length > 2) {
+        const beerIndex = target.hand.indexOf("BEER");
+
+        if (beerIndex >= 0) {
+            consumeCard(target, beerIndex);
+            target.hp = 1;
+
+            addLog(`🍺 ${target.name} tự dùng Bia để sống sót!`);
+        }
+    }
+
+    if (target.hp <= 0) {
+        eliminate(target, attacker);
+    }
+
+    return true;
+}
+
+function canUseCard(player, type) {
+    if (
+        !game
+        || game.over
+        || game.paused
+        || !player.alive
+        || currentPlayer().id !== player.id
+    ) {
+        return false;
+    }
+
+    switch (type) {
+        case "BANG":
+            return !player.bangUsed && targetsFor(player).length > 0;
+
+        case "MISS":
+            return false;
+
+        case "BEER":
+            return player.hp < player.maxHp;
+
+        case "RIFLE":
+            return !player.rifle;
+
+        case "MUSTANG":
+            return !player.mustang;
+
+        case "DRAW2":
+        case "DRAW3":
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+function useUtilityCard(player, index) {
+    const type = player.hand[index];
+
+    if (!canUseCard(player, type) || type === "BANG") {
+        return false;
+    }
+
+    if (type === "BEER") {
+        consumeCard(player, index);
+        player.hp = Math.min(player.maxHp, player.hp + 1);
+
+        addLog(`🍺 ${player.name} uống Bia, hồi một máu.`);
+    } else if (type === "DRAW2" || type === "DRAW3") {
+        consumeCard(player, index);
+
+        const amount = type === "DRAW2" ? 2 : 3;
+        const drawn = drawCards(player, amount);
+
+        addLog(
+            `📦 ${player.name} dùng ${CARDS[type].name}, rút ${drawn} lá.`
+        );
+    } else if (type === "RIFLE") {
+        // Lá trang bị nằm trên bàn, chưa vào chồng bỏ.
+        player.hand.splice(index, 1);
+        player.rifle = true;
+
+        addLog(`🎯 ${player.name} trang bị Súng trường, tầm bắn ba.`);
+    } else if (type === "MUSTANG") {
+        player.hand.splice(index, 1);
+        player.mustang = true;
+
+        addLog(`🏇 ${player.name} trang bị Ngựa Mustang.`);
+    } else {
+        return false;
+    }
+
+    return true;
+}
+
+function trimHand(player) {
+    let dropped = 0;
+
+    while (player.hand.length > player.hp) {
+        let discardIndex = 0;
+        let lowestValue = Infinity;
+
+        player.hand.forEach((type, index) => {
+            let value = {
+                MISS: 100,
+                BEER: 90,
+                BANG: 60,
+                DRAW3: 45,
+                DRAW2: 40,
+                RIFLE: 35,
+                MUSTANG: 35
+            }[type];
 
             if (
-                target is None or target == index
-                or not self.players[target]["alive"]
-            ):
-                return False
+                (type === "RIFLE" && player.rifle)
+                || (type === "MUSTANG" && player.mustang)
+            ) {
+                value = 0;
+            }
 
-            if not self.in_range(index, target):
-                if index == 0:
-                    self.log("Mục tiêu ngoài tầm súng!")
-                return False
+            if (value < lowestValue) {
+                lowestValue = value;
+                discardIndex = index;
+            }
+        });
 
-            self.consume(index, card)
-            self.bang_used = True
-            self.attack(index, target, "BANG!")
-            return True
+        consumeCard(player, discardIndex);
+        dropped++;
+    }
 
-        if card == "beer":
-            if player["hp"] >= player["maxhp"]:
-                if index == 0:
-                    self.log("Máu đã đầy, chưa cần dùng Bia.")
-                return False
+    if (dropped > 0) {
+        addLog(
+            `🃏 ${player.name} bỏ ${dropped} lá dư, còn ${player.hand.length} lá.`
+        );
+    }
+}
 
-            if len(self.alive_ids()) <= 2:
-                if index == 0:
-                    self.log("Chỉ còn 2 người: Bia không còn tác dụng.")
-                return False
+function beginTurn() {
+    if (!game || game.over) {
+        return;
+    }
 
-            self.consume(index, card)
-            player["hp"] += 1
-            self.log(f"{player['name']} uống Bia, hồi 1 máu.")
-            return True
+    const player = currentPlayer();
 
-        if card in ("rifle", "scope"):
-            if player[card]:
-                if index == 0:
-                    self.log("Bạn đã có trang bị này.")
-                return False
+    player.bangUsed = false;
+    game.selected = null;
+    game.botSteps = 0;
 
-            player["hand"].remove(card)
-            player[card] = True
-            self.log(f"{player['name']} trang bị {CARDS[card][0]}.")
-            return True
+    const drawn = drawCards(player, 2);
 
-        if card == "stage":
-            self.consume(index, card)
-            self.draw_cards(index, 2)
-            self.log(f"{player['name']} dùng Tiếp tế, rút thêm 2 lá.")
-            return True
+    addLog(`▶ Lượt ${player.name}: rút ${drawn} lá.`);
 
-        if card == "gatling":
-            self.consume(index, card)
-            self.log(f"{player['name']} khai hỏa GATLING!")
+    render();
+    scheduleBot();
+}
 
-            # Giai quyet lan luot theo vong ban.
-            targets = [
-                (index+step) % 5
-                for step in range(1, 5)
-                if self.players[(index+step) % 5]["alive"]
-            ]
-            for victim in targets:
-                if self.state != "playing":
-                    break
-                self.attack(index, victim, "Gatling")
-            return True
+function endTurn() {
+    if (!game || game.over || game.paused) {
+        return;
+    }
 
-        return False
+    stopBotTimer();
 
-    def attack(self, attacker, target, source):
-        a = self.players[attacker]
-        t = self.players[target]
+    trimHand(currentPlayer());
+    game.selected = null;
 
-        if target == 0:
-            a["hostility"] += 3
-        elif attacker != 0 and t["hostility"] >= 3:
-            a["hostility"] -= 1
+    const total = game.players.length;
 
-        self.log(f"{a['name']} dùng {source} nhằm vào {t['name']}.")
+    for (let step = 0; step < total; step++) {
+        game.turn = (game.turn + 1) % total;
 
-        if "miss" in t["hand"]:
-            self.consume(target, "miss")
-            self.log(f"{t['name']} dùng NÉ ĐẠN!")
-            return
+        if (game.turn === 0) {
+            game.round++;
+        }
 
-        t["hp"] -= 1
-        self.log(f"{t['name']} mất 1 máu.")
+        if (currentPlayer().alive) {
+            break;
+        }
+    }
 
-        if (
-            t["hp"] <= 0
-            and "beer" in t["hand"]
-            and len(self.alive_ids()) > 2
-        ):
-            self.consume(target, "beer")
-            t["hp"] += 1
-            self.log(f"{t['name']} dùng Bia tự cứu!")
+    beginTurn();
+}
 
-        if t["hp"] <= 0:
-            self.eliminate(target, attacker)
+function chooseBotTarget(player, targets) {
+    const sheriff = game.players[0];
 
-    def eliminate(self, victim, killer):
-        player = self.players[victim]
-        player["alive"] = False
+    let candidates = [...targets];
 
-        self.log(
-            f"{player['name']} bị loại! Vai trò: {ROLES[player['role']]}."
+    if (player.role === "deputy") {
+        // Phó không chủ động bắn Cảnh sát trưởng.
+        candidates = candidates.filter(target => target.id !== 0);
+    }
+
+    if (candidates.length === 0) {
+        return null;
+    }
+
+    function score(target) {
+        const weakness = target.maxHp - target.hp;
+        let result = weakness + Math.random();
+
+        if (player.role === "outlaw") {
+            result += target.id === 0
+                ? 15
+                : -target.suspicion * 2;
+        } else if (player.role === "deputy") {
+            result += target.suspicion * 3;
+        } else if (player.role === "renegade") {
+            if (alivePlayers().length === 2) {
+                result += target.id === 0 ? 20 : 0;
+            } else if (target.id === 0) {
+                // Tránh kết thúc ván quá sớm khi chưa thể sống cuối cùng.
+                result -= sheriff.hp <= 2 ? 30 : 8;
+            } else {
+                result += target.suspicion * 2;
+            }
+        }
+
+        return result;
+    }
+
+    const ranked = candidates.map(target => ({
+        target,
+        score: score(target)
+    }));
+
+    ranked.sort((a, b) => b.score - a.score);
+
+    if (
+        player.role === "renegade"
+        && ranked[0].target.id === 0
+        && alivePlayers().length > 2
+        && sheriff.hp <= 2
+    ) {
+        return null;
+    }
+
+    return ranked[0].target;
+}
+
+function botStep() {
+    if (
+        !game
+        || game.over
+        || game.paused
+        || currentPlayer().id === 0
+    ) {
+        return;
+    }
+
+    const player = currentPlayer();
+    game.botSteps++;
+
+    // Giới hạn thao tác để tránh bot rút bài kéo dài bất thường.
+    if (game.botSteps > 30) {
+        endTurn();
+        return;
+    }
+
+    const priority = [];
+
+    if (player.hp < player.maxHp) {
+        priority.push("BEER");
+    }
+
+    if (!player.rifle) {
+        priority.push("RIFLE");
+    }
+
+    if (!player.mustang) {
+        priority.push("MUSTANG");
+    }
+
+    priority.push("DRAW3", "DRAW2");
+
+    for (const type of priority) {
+        const index = player.hand.indexOf(type);
+
+        if (index >= 0 && useUtilityCard(player, index)) {
+            render();
+            scheduleBot();
+            return;
+        }
+    }
+
+    const bangIndex = player.hand.indexOf("BANG");
+
+    if (bangIndex >= 0 && !player.bangUsed) {
+        const target = chooseBotTarget(player, targetsFor(player));
+
+        if (target) {
+            fireBang(player, target, bangIndex);
+
+            render();
+            scheduleBot();
+            return;
+        }
+    }
+
+    endTurn();
+}
+
+function scheduleBot() {
+    stopBotTimer();
+
+    if (
+        !game
+        || game.over
+        || game.paused
+        || document.hidden
+        || currentPlayer().id === 0
+    ) {
+        return;
+    }
+
+    const generation = timerGeneration;
+    const speed = Number($("speed").value);
+    const delay = 850 * speed;
+
+    botTimer = setTimeout(() => {
+        botTimer = null;
+
+        if (generation !== timerGeneration) {
+            return;
+        }
+
+        botStep();
+    }, delay);
+}
+
+function setPause(value) {
+    if (!game || game.over) {
+        return;
+    }
+
+    game.paused = Boolean(value);
+    game.selected = null;
+
+    stopBotTimer();
+    render();
+
+    if (!game.paused) {
+        scheduleBot();
+    }
+}
+
+function newGame() {
+    stopBotTimer();
+
+    const roles = shuffle([
+        "deputy",
+        "outlaw",
+        "outlaw",
+        "renegade"
+    ]);
+
+    const names = [
+        "Bạn",
+        "Billy",
+        "Rose",
+        "Jesse",
+        "Doc"
+    ];
+
+    const players = names.map((name, id) => ({
+        id,
+        name,
+        role: id === 0 ? "sheriff" : roles[id - 1],
+        hp: id === 0 ? 5 : 4,
+        maxHp: id === 0 ? 5 : 4,
+        alive: true,
+        hand: [],
+        rifle: false,
+        mustang: false,
+        bangUsed: false,
+        suspicion: 0
+    }));
+
+    game = {
+        players,
+        deck: makeDeck(),
+        discard: [],
+        turn: 0,
+        round: 1,
+        logs: [],
+        selected: null,
+        over: false,
+        paused: document.hidden,
+        botSteps: 0,
+        result: ""
+    };
+
+    for (const player of players) {
+        drawCards(player, player.hp);
+    }
+
+    $("menu").hidden = true;
+    $("game").hidden = false;
+
+    addLog("★ Ván mới! Bạn là Cảnh sát trưởng, có năm máu.");
+    addLog("Vai của bốn bot được chia ngẫu nhiên.");
+
+    beginTurn();
+}
+
+function askNewGame() {
+    if (
+        game
+        && !game.over
+        && !window.confirm("Bắt đầu ván mới? Ván hiện tại sẽ mất.")
+    ) {
+        return;
+    }
+
+    newGame();
+}
+
+function backToMenu() {
+    if (
+        game
+        && !game.over
+        && !window.confirm("Về menu và bỏ ván hiện tại?")
+    ) {
+        return;
+    }
+
+    stopBotTimer();
+    game = null;
+
+    $("game").hidden = true;
+    $("menu").hidden = false;
+}
+
+function element(tag, className, text) {
+    const node = document.createElement(tag);
+
+    if (className) {
+        node.className = className;
+    }
+
+    if (text !== undefined) {
+        node.textContent = text;
+    }
+
+    return node;
+}
+
+function portrait(id, dead) {
+    const colors = [
+        "#7b5738",
+        "#773e31",
+        "#6c5275",
+        "#40576d",
+        "#466950"
+    ];
+
+    const node = element("div", "portrait");
+
+    // SVG cố định, không lấy nội dung HTML từ người dùng.
+    node.innerHTML = `
+        <svg viewBox="0 0 80 95" aria-hidden="true">
+            <path d="M12 94 Q13 62 40 61 Q67 62 68 94"
+                  fill="${dead ? "#59534b" : colors[id]}"/>
+            <ellipse cx="40" cy="45" rx="19" ry="23"
+                     fill="${dead ? "#9a9486" : "#d9a473"}"/>
+            <path d="M24 32 Q24 13 40 13 Q56 13 56 32"
+                  fill="#493322"/>
+            <path d="M15 30 L65 30 L71 37 L9 37 Z"
+                  fill="#8f6c3c"/>
+            <path d="M27 14 L53 14 L58 30 L22 30 Z"
+                  fill="#9f7a45"/>
+            <path d="M28 24 L54 24"
+                  stroke="#493322" stroke-width="4"/>
+            <circle cx="33" cy="45" r="2" fill="#33271e"/>
+            <circle cx="47" cy="45" r="2" fill="#33271e"/>
+            <path d="M32 56 Q40 60 48 56"
+                  fill="none" stroke="#694334" stroke-width="2"/>
+            <path d="M30 65 L40 76 L50 65"
+                  fill="#d7bd79"/>
+            ${dead
+                ? `<path d="M17 15 L65 77 M65 15 L17 77"
+                         stroke="#d16653" stroke-width="5"/>`
+                : ""}
+        </svg>
+    `;
+
+    return node;
+}
+
+function humanTurn() {
+    return Boolean(
+        game
+        && !game.over
+        && !game.paused
+        && game.turn === 0
+        && game.players[0].alive
+    );
+}
+
+function selectedBangIndex() {
+    if (
+        game.selected === null
+        || game.players[0].hand[game.selected] !== "BANG"
+    ) {
+        return -1;
+    }
+
+    return game.selected;
+}
+
+function onTargetClick(id) {
+    if (!humanTurn()) {
+        return;
+    }
+
+    const index = selectedBangIndex();
+
+    if (index < 0) {
+        return;
+    }
+
+    const attacker = game.players[0];
+    const target = game.players[id];
+
+    if (fireBang(attacker, target, index)) {
+        game.selected = null;
+        render();
+    }
+}
+
+function onCardClick(index) {
+    if (!humanTurn()) {
+        return;
+    }
+
+    const player = game.players[0];
+    const type = player.hand[index];
+
+    if (!canUseCard(player, type)) {
+        return;
+    }
+
+    if (type === "BANG") {
+        game.selected = game.selected === index ? null : index;
+    } else {
+        game.selected = null;
+        useUtilityCard(player, index);
+    }
+
+    render();
+}
+
+function renderPlayers() {
+    const bots = $("bots");
+    bots.replaceChildren();
+
+    const human = game.players[0];
+    const choosingTarget = humanTurn() && selectedBangIndex() >= 0;
+
+    for (const player of game.players.slice(1)) {
+        const targetable = (
+            choosingTarget
+            && player.alive
+            && distanceBetween(human, player) <= rangeOf(human)
+        );
+
+        const seat = element(
+            "button",
+            "seat"
+            + (game.turn === player.id && !game.over ? " active" : "")
+            + (targetable ? " targetable" : "")
+            + (!player.alive ? " dead" : "")
+        );
+
+        seat.type = "button";
+        seat.disabled = !targetable;
+        seat.onclick = () => onTargetClick(player.id);
+
+        seat.appendChild(element("div", "seat-name", player.name));
+
+        const body = element("div", "seat-body");
+        body.appendChild(portrait(player.id, !player.alive));
+
+        const info = element("div", "seat-info");
+
+        info.appendChild(element(
+            "div",
+            "hp" + (player.hp <= 2 ? " low" : ""),
+            player.alive
+                ? `♥ ${player.hp}/${player.maxHp}`
+                : "ĐÃ BỊ LOẠI"
+        ));
+
+        info.appendChild(element(
+            "div",
+            "",
+            `🃏 ${player.hand.length} lá`
+        ));
+
+        if (player.alive) {
+            info.appendChild(element(
+                "div",
+                "",
+                `Cách bạn: ${distanceBetween(human, player)}`
+            ));
+        }
+
+        body.appendChild(info);
+        seat.appendChild(body);
+
+        const equipment = [];
+
+        if (player.rifle) {
+            equipment.push("🎯 Súng trường");
+        }
+
+        if (player.mustang) {
+            equipment.push("🏇 Mustang");
+        }
+
+        seat.appendChild(element(
+            "div",
+            "equipment",
+            equipment.join(" • ") || "Chưa có trang bị"
+        ));
+
+        seat.appendChild(element(
+            "div",
+            "role",
+            !player.alive || game.over
+                ? ROLE[player.role]
+                : "★ Vai bí mật"
+        ));
+
+        bots.appendChild(seat);
+    }
+
+    $("human").classList.toggle(
+        "active",
+        game.turn === 0 && !game.over
+    );
+
+    $("human-title").textContent =
+        `★ BẠN — CẢNH SÁT TRƯỞNG • ♥ ${human.hp}/${human.maxHp}`;
+
+    $("human-info").textContent =
+        `Tầm bắn: ${rangeOf(human)}`
+        + ` • Bài trên tay: ${human.hand.length}`
+        + ` • BANG! lượt này: ${human.bangUsed ? "Đã dùng" : "Chưa dùng"}`
+        + (human.rifle ? " • 🎯 Súng trường" : "")
+        + (human.mustang ? " • 🏇 Mustang" : "");
+}
+
+function renderHand() {
+    const hand = $("hand");
+    const scrollPosition = hand.scrollLeft;
+
+    hand.replaceChildren();
+
+    const player = game.players[0];
+
+    player.hand.forEach((type, index) => {
+        const definition = CARDS[type];
+
+        const card = element(
+            "button",
+            "card" + (game.selected === index ? " selected" : "")
+        );
+
+        card.type = "button";
+        card.disabled = !humanTurn() || !canUseCard(player, type);
+        card.title = definition.description.replace("\n", " — ");
+        card.onclick = () => onCardClick(index);
+
+        const title = element(
+            "span",
+            "card-title",
+            definition.name
+        );
+
+        title.style.background = definition.color;
+
+        card.append(
+            title,
+            element("span", "card-icon", definition.icon),
+            element("span", "card-description", definition.description)
+        );
+
+        hand.appendChild(card);
+    });
+
+    if (player.hand.length === 0) {
+        hand.appendChild(element(
+            "p",
+            "",
+            player.alive ? "Bạn không còn bài trên tay." : "Bạn đã bị loại."
+        ));
+    }
+
+    hand.scrollLeft = scrollPosition;
+}
+
+function render() {
+    if (!game) {
+        return;
+    }
+
+    renderPlayers();
+    renderHand();
+
+    $("result").hidden = !game.over;
+    $("result-title").textContent = game.result;
+
+    $("table-turn").textContent = game.over
+        ? "VÁN ĐÃ KẾT THÚC"
+        : `Vòng ${game.round} • Lượt ${currentPlayer().name}`;
+
+    $("status").textContent = game.over
+        ? "Ván đã kết thúc"
+        : game.paused
+            ? "⏸ Ván đang tạm dừng"
+            : game.turn === 0
+                ? "★ Đến lượt bạn"
+                : `⌛ ${currentPlayer().name} đang hành động`;
+
+    $("statistics").textContent =
+        `Còn ${alivePlayers().length}/5 người`
+        + ` • Bộ bài: ${game.deck.length}`
+        + ` • Bài bỏ: ${game.discard.length}`;
+
+    $("end").disabled = !humanTurn();
+    $("pause").disabled = game.over;
+    $("pause").textContent = game.paused ? "Tiếp tục" : "Tạm dừng";
+
+    $("prompt").textContent = game.over
+        ? "Ván đã kết thúc. Bạn có thể xem vai bot hoặc chơi lại."
+        : game.paused
+            ? "Nhấn Tiếp tục để chơi."
+            : game.turn !== 0
+                ? "Chờ bot kết thúc lượt. Né đạn và Bia cứu mạng sẽ tự dùng."
+                : selectedBangIndex() >= 0
+                    ? "Chọn đối thủ có viền xanh để bắn. Chạm lại lá BANG! để hủy."
+                    : "Chọn bài để dùng; hoặc kết thúc lượt. Né đạn được giữ để tự phòng thủ.";
+
+    const logs = $("logs");
+    logs.replaceChildren();
+
+    for (const text of game.logs) {
+        logs.appendChild(element("p", "", text));
+    }
+
+    logs.scrollTop = logs.scrollHeight;
+}
+
+$("start").onclick = newGame;
+$("play-again").onclick = newGame;
+$("new").onclick = askNewGame;
+$("back").onclick = backToMenu;
+$("result-menu").onclick = backToMenu;
+
+$("end").onclick = () => {
+    if (humanTurn()) {
+        endTurn();
+    }
+};
+
+$("pause").onclick = () => {
+    if (game) {
+        setPause(!game.paused);
+    }
+};
+
+$("speed").onchange = scheduleBot;
+
+$("help-button").onclick = () => {
+    if (game && !game.over) {
+        setPause(true);
+    }
+
+    if (!$("help").open) {
+        $("help").showModal();
+    }
+};
+
+$("close-help").onclick = () => {
+    $("help").close();
+    // Không tự tiếp tục ván: người chơi chủ động bấm Tiếp tục.
+};
+
+document.addEventListener("visibilitychange", () => {
+    if (document.hidden && game && !game.over) {
+        setPause(true);
+    }
+});
+
+window.addEventListener("keydown", event => {
+    const active = document.activeElement;
+
+    if (
+        active
+        && (
+            active.matches("input, textarea, select")
+            || active.isContentEditable
         )
-
-        self.discard.extend(player["hand"])
-        player["hand"].clear()
-
-        for equipment in ("rifle", "scope"):
-            if player[equipment]:
-                self.discard.append(equipment)
-                player[equipment] = False
-
-        attacker = self.players[killer]
-
-        if player["role"] == "outlaw" and attacker["alive"]:
-            self.draw_cards(killer, 3)
-            self.log(f"{attacker['name']} nhận thưởng 3 lá vì hạ Tội phạm.")
-
-        if killer == 0 and player["role"] == "deputy":
-            self.discard.extend(attacker["hand"])
-            attacker["hand"].clear()
-            for equipment in ("rifle", "scope"):
-                if attacker[equipment]:
-                    self.discard.append(equipment)
-                    attacker[equipment] = False
-            self.log("Bắn nhầm đồng đội! Bạn mất toàn bộ bài và trang bị.")
-
-        self.check_victory()
-
-    def check_victory(self):
-        living = [p for p in self.players if p["alive"]]
-
-        if not self.players[0]["alive"]:
-            if len(living) == 1 and living[0]["role"] == "renegade":
-                self.result = "KẺ PHẢN BỘI CHIẾN THẮNG"
-            else:
-                self.result = "PHE TỘI PHẠM CHIẾN THẮNG"
-            self.state = "over"
-
-        elif not any(
-            p["alive"] and p["role"] in ("outlaw", "renegade")
-            for p in self.players
-        ):
-            self.result = "BẠN VÀ PHE CẢNH SÁT CHIẾN THẮNG!"
-            self.state = "over"
-
-    # =====================================================
-    # BOT
-    # =====================================================
-
-    def choose_target(self, index):
-        role = self.players[index]["role"]
-        candidates = [
-            i for i in self.alive_ids()
-            if i != index and self.in_range(index, i)
-        ]
-
-        if not candidates:
-            return None
-
-        if role == "outlaw":
-            if 0 in candidates:
-                return 0
-
-            # Nhan dien dong minh qua hanh dong,
-            # khong doc truc tiep vai tro nguoi khac.
-            candidates = [
-                i for i in candidates
-                if self.players[i]["hostility"] < 3
-            ]
-            if not candidates:
-                return None
-
-            return min(
-                candidates,
-                key=lambda i: (
-                    self.players[i]["hostility"],
-                    self.players[i]["hp"]
-                )
-            )
-
-        if role == "deputy":
-            suspects = [
-                i for i in candidates
-                if i != 0 and self.players[i]["hostility"] > 0
-            ]
-            if not suspects:
-                return None
-
-            return max(
-                suspects,
-                key=lambda i: (
-                    self.players[i]["hostility"],
-                    -self.players[i]["hp"]
-                )
-            )
-
-        # Ke phan boi giu canh sat truong song cho den cuoi.
-        others = [i for i in candidates if i != 0]
-        if others:
-            return min(
-                others,
-                key=lambda i: self.players[i]["hp"]
-            )
-
-        if len(self.alive_ids()) == 2 and 0 in candidates:
-            return 0
-
-        return None
-
-    def bot_action(self):
-        if self.state != "playing" or self.turn == 0:
-            return
-
-        index = self.turn
-        player = self.players[index]
-        hand = player["hand"]
-        self.bot_steps += 1
-
-        # Chan vong rut bai qua dai.
-        if self.bot_steps > 14:
-            self.end_turn()
-            return
-
-        action = None
-        target = None
-
-        if (
-            "beer" in hand
-            and player["hp"] < player["maxhp"]
-            and len(self.alive_ids()) > 2
-        ):
-            action = "beer"
-        elif "rifle" in hand and not player["rifle"]:
-            action = "rifle"
-        elif "scope" in hand and not player["scope"]:
-            action = "scope"
-        elif "stage" in hand:
-            action = "stage"
-        else:
-            if "bang" in hand and not self.bang_used:
-                target = self.choose_target(index)
-                if target is not None:
-                    action = "bang"
-
-            if action is None and "gatling" in hand:
-                role = player["role"]
-                # Pho canh sat khong dung Gatling vi trung sheriff.
-                # Ke phan boi tranh giet sheriff qua som.
-                safe_for_plan = (
-                    role == "outlaw"
-                    or (
-                        role == "renegade"
-                        and (
-                            len(self.alive_ids()) == 2
-                            or self.players[0]["hp"] >= 3
-                        )
-                    )
-                )
-                if safe_for_plan:
-                    action = "gatling"
-
-        if action is None:
-            self.end_turn()
-            return
-
-        self.use_card(index, action, target)
-        self.render()
-
-        if self.state == "playing":
-            self.schedule(self.bot_action, 850)
-
-    # =====================================================
-    # VE BAN CHOI
-    # =====================================================
-
-    def draw_player(self, index, x, y, w=195, h=163):
-        player = self.players[index]
-        active = self.turn == index and self.state == "playing"
-        targetable = (
-            self.state == "playing"
-            and self.turn == 0
-            and self.selected is not None
-            and index != 0
-            and player["alive"]
-            and self.in_range(0, index)
-        )
-
-        border = "#65bda2" if targetable else (
-            GOLD if active else "#8c7250"
-        )
-
-        self.rect(x+4, y+5, w, h, "#1b1815")
-        self.rect(
-            x, y, w, h,
-            "#352e24" if player["alive"] else "#292725",
-            border, 3 if active or targetable else 1
-        )
-
-        self.text(x+w/2, y+17, player["name"], 14, PAPER, True)
-        colors = ["#596a70", "#6f5744", "#87504b", "#53635b", "#646078"]
-
-        self.cowboy(
-            x+48, y+83, colors[index],
-            index == 0, player["alive"]
-        )
-
-        hp_color = "#d77c62" if player["hp"] <= 2 else "#8bc49e"
-        self.text(
-            x+123, y+55,
-            f"MÁU {max(0, player['hp'])}/{player['maxhp']}",
-            13, hp_color, True
-        )
-        self.text(
-            x+123, y+81,
-            f"{len(player['hand'])} lá bài",
-            12
-        )
-
-        equipment = []
-        if player["rifle"]:
-            equipment.append("Súng: 2")
-        if player["scope"]:
-            equipment.append("Ngắm: -1")
-
-        self.text(
-            x+122, y+105,
-            " | ".join(equipment) if equipment else "Súng: 1",
-            10, GOLD
-        )
-
-        revealed = index == 0 or not player["alive"] or self.state == "over"
-        role_label = ROLES[player["role"]] if revealed else "VAI TRÒ ẨN"
-
-        self.text(
-            x+w/2, y+h-21, role_label,
-            11, "#d4ba8c", True
-        )
-
-        self.player_rects.append(((x, y, x+w, y+h), index))
-
-    def draw_card(self, x, y, w, h, card, selected=False):
-        title, description, color = CARDS[card]
-        offset = -12 if selected else 0
-        y += offset
-
-        self.rect(x+3, y+5, w, h, "#201a15")
-        self.rect(
-            x, y, w, h, "#ecd7aa",
-            "#76d4ab" if selected else "#a28251",
-            3 if selected else 2
-        )
-
-        self.rect(x+5, y+5, w-10, 34, color)
-        self.text(x+w/2, y+22, title, 10, "#fff3d1", True)
-
-        cx, cy = x+w/2, y+78
-
-        if card == "bang":
-            self.star(cx, cy, 25, "#ab4935")
-            self.text(cx, cy+1, "!", 26, "#fff2b9", True)
-
-        elif card == "miss":
-            self.canvas.create_oval(
-                cx-23, cy-23, cx+23, cy+23,
-                outline=color, width=4
-            )
-            self.canvas.create_line(
-                cx-18, cy+20, cx+20, cy-20,
-                fill=color, width=5
-            )
-
-        elif card == "beer":
-            self.rect(cx-17, cy-16, 29, 38, "#c78f31", "#755322", 2)
-            self.canvas.create_arc(
-                cx+2, cy-12, cx+29, cy+20,
-                start=-90, extent=180, style="arc",
-                outline="#755322", width=5
-            )
-            self.canvas.create_oval(
-                cx-19, cy-23, cx+14, cy-9,
-                fill="#fff0cd", outline=""
-            )
-
-        elif card in ("rifle", "scope"):
-            self.canvas.create_line(
-                cx-26, cy+15, cx+25, cy-13,
-                fill="#544c40", width=7
-            )
-            if card == "scope":
-                self.canvas.create_oval(
-                    cx-16, cy-16, cx+16, cy+16,
-                    outline=color, width=4
-                )
-
-        elif card == "stage":
-            self.rect(cx-28, cy-15, 55, 31, "#9a7045", "#4e3828", 2)
-            for dx in (-17, 17):
-                self.canvas.create_oval(
-                    cx+dx-8, cy+11, cx+dx+8, cy+27,
-                    fill="#5a4935", outline="#30271e", width=2
-                )
-
-        else:
-            for dy in (-9, 0, 9):
-                self.canvas.create_line(
-                    cx-27, cy+dy, cx+24, cy+dy,
-                    fill="#524b40", width=5
-                )
-
-        self.text(
-            cx, y+h-30, description, 10, INK,
-            width=w-8
-        )
-
-    def render(self):
-        if self.state == "menu":
-            self.draw_menu()
-            return
-
-        self.wood()
-        self.buttons = []
-        self.hand_rects = []
-        self.player_rects = []
-
-        self.text(28, 27, "BANG!  MIỀN TÂY", 23, GOLD, True, anchor="w")
-        self.text(
-            817, 27,
-            f"Vòng {self.round_number}  •  Bộ bài: {len(self.deck)}",
-            12, PAPER, anchor="e"
-        )
-
-        self.button(838, 10, 123, 36, "Hướng dẫn", "help")
-        self.button(975, 10, 123, 36, "Ván mới", "new")
-
-        # Ban tron, thu tu vong: Ban -> Jack -> Rose -> Billy -> Tom.
-        self.canvas.create_oval(
-            61, 91, 797, 535,
-            fill="#253e35", outline="#9e7b48", width=12
-        )
-        self.canvas.create_oval(
-            77, 107, 781, 520,
-            outline="#667459", width=2
-        )
-
-        self.draw_player(1, 59, 275)
-        self.draw_player(2, 158, 73)
-        self.draw_player(3, 488, 73)
-        self.draw_player(4, 587, 275)
-
-        self.star(420, 315, 51, "#a88b4c")
-        self.text(420, 384, "THỊ TRẤN BỤI ĐỎ", 17, GOLD, True)
-
-        if self.state == "playing":
-            current = self.players[self.turn]["name"]
-            turn_text = "LƯỢT CỦA BẠN" if self.turn == 0 else f"LƯỢT: {current}"
-        else:
-            turn_text = "VÁN ĐẤU KẾT THÚC"
-
-        self.text(420, 422, turn_text, 16, "#e6d7b4", True)
-
-        p = self.players[0]
-        self.rect(50, 467, 748, 70, "#29271f", "#a38552", 2)
-        self.star(83, 500, 22, GOLD)
-
-        self.text(
-            117, 488,
-            f"BẠN • CẢNH SÁT TRƯỞNG • MÁU {max(0,p['hp'])}/5",
-            15, PAPER, True, anchor="w"
-        )
-        info = (
-            f"Tầm súng: {2 if p['rifle'] else 1}"
-            f"   |   Ống ngắm: {'Có' if p['scope'] else 'Không'}"
-            f"   |   BANG!: {'Đã dùng' if self.bang_used else 'Sẵn sàng'}"
-        )
-        self.text(117, 517, info, 11, GOLD, anchor="w")
-
-        # Nhat ky.
-        self.rect(824, 65, 278, 472, "#241f19", "#96774b", 2)
-        self.text(963, 87, "NHẬT KÝ THỊ TRẤN", 15, GOLD, True)
-
-        last_logs = self.logs[-10:]
-        for i, line in enumerate(last_logs):
-            self.text(
-                838, 117+i*40, line, 10,
-                "#e2d0ac", anchor="nw", width=250
-            )
-
-        self.button(
-            897, 555, 205, 48,
-            "KẾT THÚC LƯỢT", "end",
-            self.state == "playing" and self.turn == 0
-        )
-        self.button(897, 615, 205, 44, "MÀN HÌNH CHÍNH", "menu")
-
-        if self.selected is not None:
-            prompt = "Chọn đối thủ viền xanh để bắn • Nhấp lại lá bài để hủy"
-        elif self.turn == 0 and self.state == "playing":
-            prompt = "Nhấp bài để sử dụng. Né đạn được dùng tự động."
-        else:
-            prompt = "Quan sát hành động để suy đoán vai trò đối thủ."
-
-        self.text(30, 559, prompt, 12, "#f5ddaa", anchor="w")
-
-        hand = p["hand"]
-        count = len(hand)
-
-        card_w, card_h = 106, 160
-        spacing = min(116, 825/max(1, count))
-        total = (count-1)*spacing+card_w if count else 0
-        start_x = 25+max(0, (845-total)/2)
-
-        for index, card in enumerate(hand):
-            x = start_x+index*spacing
-            y = 594
-            chosen = self.selected == index
-            self.draw_card(x, y, card_w, card_h, card, chosen)
-            yy = y-12 if chosen else y
-            self.hand_rects.append(
-                ((x, yy, x+card_w, yy+card_h), index)
-            )
-
-        if not hand:
-            self.text(430, 673, "Bạn chưa có lá bài nào.", 18, "#c3ac85")
-
-        self.text(
-            30, 782,
-            "F2: ván mới  •  ESC: menu  •  Tự bỏ bài dư cuối lượt  •  Phiên bản luật giản lược",
-            10, "#baa283", anchor="w"
-        )
-
-        if self.state == "over":
-            self.draw_result()
-
-    def draw_result(self):
-        # Giu nhin thay vai tro da lat o phia tren.
-        self.rect(230, 267, 650, 198, "#1b211e", GOLD, 3)
-        self.text(
-            555, 310, self.result, 22,
-            "#a2d3aa" if self.players[0]["alive"] else "#edac88",
-            True, width=610
-        )
-        self.text(
-            555, 357,
-            "Các vai trò đã được công khai. Chơi lại để thử ván mới!",
-            13
-        )
-
-        # Khong nhan cac nut bi che.
-        self.buttons = []
-        self.button(287, 395, 240, 45, "CHƠI VÁN MỚI", "new")
-        self.button(582, 395, 240, 45, "VỀ MENU", "menu")
-
-    # =====================================================
-    # TUONG TAC
-    # =====================================================
-
-    @staticmethod
-    def contains(rect, x, y):
-        return rect[0] <= x <= rect[2] and rect[1] <= y <= rect[3]
-
-    def click(self, event):
-        x, y = event.x, event.y
-
-        for rect, action, enabled in reversed(self.buttons):
-            if self.contains(rect, x, y):
-                if not enabled:
-                    return
-                if action == "new":
-                    self.new_game()
-                elif action == "menu":
-                    self.show_menu()
-                elif action == "help":
-                    self.show_help()
-                elif action == "end":
-                    self.end_turn()
-                return
-
-        if self.state != "playing" or self.turn != 0:
-            return
-
-        if self.selected is not None:
-            for rect, index in self.player_rects:
-                if self.contains(rect, x, y):
-                    if self.use_card(0, "bang", index):
-                        self.selected = None
-                    self.render()
-                    return
-
-        # La ve sau nam tren, nen duyet nguoc.
-        for rect, index in reversed(self.hand_rects):
-            if not self.contains(rect, x, y):
-                continue
-
-            hand = self.players[0]["hand"]
-            if index >= len(hand):
-                return
-
-            card = hand[index]
-
-            if card == "bang":
-                if self.bang_used:
-                    self.log("Mỗi lượt chỉ được dùng 1 lá BANG!.")
-                    self.selected = None
-                else:
-                    self.selected = (
-                        None if self.selected == index else index
-                    )
-            else:
-                self.selected = None
-                self.use_card(0, card)
-
-            self.render()
-            return
-
-
-def main():
-    root = tk.Tk()
-    WesternGame(root)
-    root.mainloop()
-
-
-if __name__ == "__main__":
-    main()
+    ) {
+        return;
+    }
+
+    if (event.key === "F2") {
+        event.preventDefault();
+
+        if (!$("help").open) {
+            askNewGame();
+        }
+    }
+
+    if (event.key === "Escape" && !$("help").open && game) {
+        backToMenu();
+    }
+});
+</script>
+</body>
+</html>
